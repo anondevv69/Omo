@@ -19,6 +19,27 @@ async function getActiveTab() {
   return tab;
 }
 
+function isFomoUrl(url) {
+  if (!url) return false;
+  try {
+    const u = new URL(url);
+    return u.hostname === "fomo.family" || u.hostname === "www.fomo.family";
+  } catch {
+    return false;
+  }
+}
+
+/** Prefer focused fomo tab; otherwise any open fomo.family tab (popup is often not on fomo). */
+async function findFomoTabId() {
+  const active = await getActiveTab();
+  if (active?.id && isFomoUrl(active.url)) return active.id;
+
+  const matches = await chrome.tabs.query({
+    url: ["https://fomo.family/*", "https://www.fomo.family/*"],
+  });
+  return matches[0]?.id ?? null;
+}
+
 function renderScanLists(session) {
   const solEl = document.getElementById("scanSol");
   const evmEl = document.getElementById("scanEvm");
@@ -70,13 +91,19 @@ document.getElementById("useFirstEvm").addEventListener("click", async () => {
 });
 
 document.getElementById("rescan").addEventListener("click", async () => {
-  const tab = await getActiveTab();
-  if (!tab?.id) return;
+  const tabId = await findFomoTabId();
+  if (!tabId) {
+    showStatus(
+      "Open https://fomo.family in a browser tab, log in, open a profile or balances. Leave that tab open, then click Rescan again (the focused tab can be this popup’s window — we look for any fomo tab).",
+      true
+    );
+    return;
+  }
   try {
-    await chrome.tabs.sendMessage(tab.id, { type: "SCAN" });
+    await chrome.tabs.sendMessage(tabId, { type: "SCAN" });
   } catch {
     showStatus(
-      "No content script on this tab. Focus a tab on fomo.family or www.fomo.family, hard-refresh (⌘⇧R), then try Rescan again.",
+      "Found a fomo tab but the extension isn’t injected yet. On that tab press ⌘⇧R (hard refresh), then Rescan again.",
       true
     );
     return;
