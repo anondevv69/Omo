@@ -52,7 +52,7 @@ function renderList(el, label, addrs) {
 }
 
 async function refreshFromStorage() {
-  const session = await chrome.storage.session.get([
+  const session = await chrome.storage.local.get([
     "lastScanAt",
     "lastAddresses",
     "lastSolanaAddresses",
@@ -117,7 +117,7 @@ async function refreshFromStorage() {
 }
 
 document.getElementById("useFirstSol").addEventListener("click", async () => {
-  const session = await chrome.storage.session.get([
+  const session = await chrome.storage.local.get([
     "lastSolanaAddresses",
     "lastAddresses",
   ]);
@@ -126,19 +126,19 @@ document.getElementById("useFirstSol").addEventListener("click", async () => {
 });
 
 document.getElementById("useYourSol").addEventListener("click", async () => {
-  const session = await chrome.storage.session.get(["lastYouSolana"]);
+  const session = await chrome.storage.local.get(["lastYouSolana"]);
   const sol = session.lastYouSolana ?? [];
   if (sol[0]) creatorEl.value = sol[0];
 });
 
 document.getElementById("useProfileSol").addEventListener("click", async () => {
-  const session = await chrome.storage.session.get(["lastProfileSolana"]);
+  const session = await chrome.storage.local.get(["lastProfileSolana"]);
   const sol = session.lastProfileSolana ?? [];
   if (sol[0]) creatorEl.value = sol[0];
 });
 
 document.getElementById("useFirstEvm").addEventListener("click", async () => {
-  const session = await chrome.storage.session.get(["lastEvmAddresses"]);
+  const session = await chrome.storage.local.get(["lastEvmAddresses"]);
   const evm = session.lastEvmAddresses ?? [];
   if (evm[0]) creatorEl.value = evm[0];
 });
@@ -172,7 +172,7 @@ document.getElementById("rescan").addEventListener("click", async () => {
     return;
   }
   await refreshFromStorage();
-  const s = await chrome.storage.session.get(["fomoLoggedIn"]);
+  const s = await chrome.storage.local.get(["fomoLoggedIn"]);
   showStatus(
     s.fomoLoggedIn === true
       ? "Updated. If wallets are still empty, trigger Holders or navigate once, then Refresh again."
@@ -182,7 +182,7 @@ document.getElementById("rescan").addEventListener("click", async () => {
 });
 
 prepareBtn.addEventListener("click", async () => {
-  const session = await chrome.storage.session.get(["fomoLoggedIn"]);
+  const session = await chrome.storage.local.get(["fomoLoggedIn"]);
   if (session.fomoLoggedIn !== true) {
     showStatus("Sign in to fomo.family first, then Refresh.", true);
     return;

@@ -1,6 +1,9 @@
 /**
  * Isolated world: DOM scrape + FOMO API sniff (inject.js).
  * Splits "you" vs "this profile" using GET /v2/users/{id} vs /balances on /profile/… pages.
+ *
+ * Uses chrome.storage.local (not session): session storage is blocked from content scripts
+ * unless setAccessLevel is used; local avoids "Access to storage is not allowed from this context."
  */
 const RE_SOLANA = /\b[1-9A-HJ-NP-Za-km-z]{43,44}\b/g;
 const RE_EVM = /\b0x[a-fA-F0-9]{40}\b/g;
@@ -124,7 +127,7 @@ function onBalancesSniff(balancesUserId) {
 window.addEventListener("message", (event) => {
   const d = event.data;
   if (d?.source === MSG_SOURCE && d.type === "fomo-auth") {
-    void chrome.storage.session.set({
+    void chrome.storage.local.set({
       fomoLoggedIn: d.ok === true,
       fomoAuthAt: Date.now(),
     });
@@ -138,7 +141,7 @@ window.addEventListener("message", (event) => {
     !!d.balancesUserId ||
     !!d.userDetail;
   if (hasWalletPayload) {
-    void chrome.storage.session.set({ fomoLoggedIn: true, fomoAuthAt: Date.now() });
+    void chrome.storage.local.set({ fomoLoggedIn: true, fomoAuthAt: Date.now() });
   }
 
   if (d.balancesUserId) {
@@ -274,7 +277,7 @@ async function publish() {
   const solana = mergeUnique(apiListSol, dom.solana);
   const evm = mergeUnique(apiListEvm, dom.evm);
 
-  await chrome.storage.session.set({
+  await chrome.storage.local.set({
     lastScanAt: Date.now(),
     lastSolanaAddresses: solana,
     lastEvmAddresses: evm,
