@@ -112,6 +112,43 @@
     }
   }
 
+  /** Wallet rows from balances API — authoritative for "whose" balances (vs blind JSON walk). */
+  function extractBalancesStructured(data) {
+    const solana = [];
+    const evm = [];
+    const seenS = new Set();
+    const seenE = new Set();
+    try {
+      const balances = data?.responseObject?.balances;
+      if (!Array.isArray(balances)) return { solana, evm };
+      for (const row of balances) {
+        if (!row || typeof row !== "object") continue;
+        const addr = row.address;
+        if (typeof addr === "string") {
+          if (/^0x[a-fA-F0-9]{40}$/i.test(addr)) {
+            if (!seenE.has(addr)) {
+              seenE.add(addr);
+              evm.push(addr);
+            }
+          } else if (/^[1-9A-HJ-NP-Za-km-z]{43,44}$/.test(addr)) {
+            if (!seenS.has(addr)) {
+              seenS.add(addr);
+              solana.push(addr);
+            }
+          }
+        }
+        const evA = row.evmAddress;
+        if (typeof evA === "string" && /^0x[a-fA-F0-9]{40}$/i.test(evA) && !seenE.has(evA)) {
+          seenE.add(evA);
+          evm.push(evA);
+        }
+      }
+    } catch {
+      /* ignore */
+    }
+    return { solana, evm };
+  }
+
   const origFetch = window.fetch;
   window.fetch = async function (...args) {
     const res = await origFetch.apply(this, args);
@@ -144,6 +181,9 @@
 
           const { solana: sWalk, evm: eWalk } = extractFromJson(data);
           const balancesUserId = parseBalancesUserId(url);
+          const balancesStructured = balancesUserId
+            ? extractBalancesStructured(data)
+            : { solana: [], evm: [] };
           const userDetail = parseUserDetailFromResponse(url, data);
 
           const solana = [...sWalk];
@@ -172,6 +212,8 @@
               solana,
               evm,
               balancesUserId,
+              balancesStructuredSolana: balancesStructured.solana,
+              balancesStructuredEvm: balancesStructured.evm,
               userDetail,
             },
             "*"

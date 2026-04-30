@@ -34,9 +34,13 @@ const profileCanonSeenEvm = new Set();
 const profileCanonListSol = [];
 const profileCanonListEvm = [];
 
+/** Structured balances rows keyed by path UUID — fixes profile vs viewer when multiple /balances fire */
+/** @type {Map<string, { sol: string[]; evm: string[] }>} */
+const balancesByUserId = new Map();
+
 /** @type {string | null} */
 let lastProfileSlugPublished = null;
-/** User id from latest /balances on this profile tab */
+/** Last /balances path UUID seen (legacy fallback only; may be viewer after header refresh) */
 let profileBuddyId = null;
 /** @type {{ id: string; address: string | null; evmAddress: string | null } | null} */
 let pendingUserDetail = null;
@@ -56,7 +60,126 @@ function currentProfileSlug() {
 
 function isProfileBalancesUrl(url) {
   if (!url || typeof url !== "string") return false;
-  return /\/v2\/users\/[^/]+\/balances/i.test(url) && url.includes("prod-api.fomo.family");
+  return (
+    /\/v2\/users\/[^/]+\/balances/i.test(url) &&
+    (url.includes("prod-api.fomo.family") || url.includes("api.fomo.family"))
+  );
+}
+
+/** Viewer UUID: balances row addresses overlap YOU buckets */
+function inferViewerBalancesUserId() {
+  const youS = new Set(youListSol);
+  const youE = new Set(youListEvm);
+  if (!youS.size && !youE.size) return null;
+  for (const [uid, pack] of balancesByUserId) {
+    const hit =
+      pack.sol.some((s) => youS.has(s)) || pack.evm.some((e) => youE.has(e));
+    if (hit) return uid;
+  }
+  return null;
+}
+
+/** Profile owner UUID on /profile/… : not the inferred viewer when ≥2 balance fetches exist */
+function ownerUuidForProfileCanon() {
+  const slug = currentProfileSlug();
+  if (!slug) return profileBuddyId;
+
+  const vid = inferViewerBalancesUserId();
+  const ids = [...balancesByUserId.keys()];
+  if (ids.length === 0) return profileBuddyId;
+
+  if (vid) {
+    const others = ids.filter((id) => id !== vid);
+    if (others.length >= 1) return others[0];
+    return null;
+  }
+
+  if (ids.length === 1) {
+    const pack = balancesByUserId.get(ids[0]);
+    const youS = new Set(youListSol);
+    const youE = new Set(youListEvm);
+    const looksViewer =
+      pack &&
+      (pack.sol.some((s) => youS.has(s)) || pack.evm.some((e) => youE.has(e)));
+    if (looksViewer) return null;
+    return ids[0];
+  }
+
+  /** Multiple UUIDs before YOU list filled: same uniqueness rule as profileSolFromStructured */
+  const entries = [...balancesByUserId.entries()];
+  for (const [uid, pack] of entries) {
+    for (const s of pack.sol) {
+      let owners = 0;
+      for (const [, p] of entries) {
+        if (p.sol.includes(s)) owners++;
+      }
+      if (owners === 1) return uid;
+    }
+  }
+
+  return ids[0];
+}
+
+function profileSolFromStructured() {
+  const slug = currentProfileSlug();
+  if (!slug) return null;
+
+  const entries = [...balancesByUserId.entries()];
+  if (!entries.length) return null;
+
+  const vid = inferViewerBalancesUserId();
+  if (vid) {
+    const candidates = entries.filter(([uid]) => uid !== vid);
+    for (const [, pack] of candidates) {
+      if (pack.sol.length || pack.evm.length) return pack;
+    }
+    return null;
+  }
+
+  const youS = new Set(youListSol);
+  const youE = new Set(youListEvm);
+
+  /** Pack has at least one wallet not attributed to YOU */
+  function packLooksLikeOtherProfile(pack) {
+    const nonYouSol = pack.sol.some((s) => !youS.has(s));
+    const nonYouEvm = pack.evm.some((e) => !youE.has(e));
+    return nonYouSol || nonYouEvm;
+  }
+
+  if (youS.size || youE.size) {
+    for (const [, pack] of entries) {
+      if (packLooksLikeOtherProfile(pack)) return pack;
+    }
+    return null;
+  }
+
+  if (entries.length === 1) {
+    const [, pack] = entries[0];
+    return pack.sol.length || pack.evm.length ? pack : null;
+  }
+
+  /** Two /balances calls before YOU is known: pick pack with a Sol row unique to that UUID */
+  for (const [, pack] of entries) {
+    for (const s of pack.sol) {
+      let owners = 0;
+      for (const [, p] of entries) {
+        if (p.sol.includes(s)) owners++;
+      }
+      if (owners === 1) return pack;
+    }
+  }
+
+  const [, first] = entries[0];
+  return first.sol.length || first.evm.length ? first : null;
+}
+
+function tryFlushPendingUserDetail() {
+  if (!pendingUserDetail) return;
+  const ownerId = ownerUuidForProfileCanon();
+  if (!ownerId) return;
+  const ud = pendingUserDetail;
+  pendingUserDetail = null;
+  applyUserDetailToBuckets(ud);
 }
 
 function applyUserDetailToBuckets(ud) {
@@ -76,7 +199,8 @@ function applyUserDetailToBuckets(ud) {
   }
 
   if (slug) {
-    if (profileBuddyId && id === profileBuddyId) {
+    const ownerId = ownerUuidForProfileCanon();
+    if (ownerId && id === ownerId) {
       addCanon(
         profileCanonListSol,
         profileCanonListEvm,
@@ -88,7 +212,7 @@ function applyUserDetailToBuckets(ud) {
       pendingUserDetail = null;
       return;
     }
-    if (!profileBuddyId) {
+    if (!ownerId) {
       pendingUserDetail = ud;
       return;
     }
@@ -110,18 +234,23 @@ function pushYouFromDetail(ud) {
   }
 }
 
-function onBalancesSniff(balancesUserId) {
-  const slug = currentProfileSlug();
-  if (!slug || !balancesUserId) return;
-  profileBuddyId = balancesUserId;
-  if (pendingUserDetail) {
-    if (pendingUserDetail.id === profileBuddyId) {
-      applyUserDetailToBuckets(pendingUserDetail);
-    } else {
-      pushYouFromDetail(pendingUserDetail);
-    }
-    pendingUserDetail = null;
-  }
+function recordBalancesStructured(d) {
+  const uid = d.balancesUserId;
+  if (!uid) return;
+
+  const sol = Array.isArray(d.balancesStructuredSolana)
+    ? [...d.balancesStructuredSolana]
+    : [];
+  const evm = Array.isArray(d.balancesStructuredEvm)
+    ? [...d.balancesStructuredEvm]
+    : [];
+
+  if (!sol.length && !evm.length) return;
+
+  balancesByUserId.set(uid, { sol, evm });
+  profileBuddyId = uid;
+
+  tryFlushPendingUserDetail();
 }
 
 window.addEventListener("message", (event) => {
@@ -144,8 +273,11 @@ window.addEventListener("message", (event) => {
     void chrome.storage.local.set({ fomoLoggedIn: true, fomoAuthAt: Date.now() });
   }
 
-  if (d.balancesUserId) {
-    onBalancesSniff(d.balancesUserId);
+  if (
+    d.balancesUserId &&
+    (d.balancesStructuredSolana?.length || d.balancesStructuredEvm?.length)
+  ) {
+    recordBalancesStructured(d);
   }
 
   for (const a of d.solana || []) {
@@ -162,23 +294,37 @@ window.addEventListener("message", (event) => {
   }
 
   const slug = currentProfileSlug();
-  if (slug && d.balancesUserId && isProfileBalancesUrl(d.url)) {
-    for (const a of d.solana || []) {
-      if (!profSeenSol.has(a)) {
-        profSeenSol.add(a);
-        profListSol.push(a);
+  const hasBalancesStruct =
+    (d.balancesStructuredSolana?.length ?? 0) > 0 ||
+    (d.balancesStructuredEvm?.length ?? 0) > 0;
+  if (
+    slug &&
+    d.balancesUserId &&
+    isProfileBalancesUrl(d.url) &&
+    !hasBalancesStruct
+  ) {
+    const vid = inferViewerBalancesUserId();
+    const skipProfWalk =
+      vid && d.balancesUserId === vid && balancesByUserId.size > 1;
+    if (!skipProfWalk) {
+      for (const a of d.solana || []) {
+        if (!profSeenSol.has(a)) {
+          profSeenSol.add(a);
+          profListSol.push(a);
+        }
       }
-    }
-    for (const a of d.evm || []) {
-      if (!profSeenEvm.has(a)) {
-        profSeenEvm.add(a);
-        profListEvm.push(a);
+      for (const a of d.evm || []) {
+        if (!profSeenEvm.has(a)) {
+          profSeenEvm.add(a);
+          profListEvm.push(a);
+        }
       }
     }
   }
 
   if (d.userDetail) {
     applyUserDetailToBuckets(d.userDetail);
+    tryFlushPendingUserDetail();
   }
 
   void publish();
@@ -248,13 +394,19 @@ function mergeUnique(primary, secondary) {
   return out;
 }
 
-/** Prefer canonical profile wallets when present */
+/** Prefer GET /users/{owner}, then structured balances for non-viewer UUID, then DOM/walk fallback */
 function profileDisplaySol() {
-  return profileCanonListSol.length ? [...profileCanonListSol] : [...profListSol];
+  if (profileCanonListSol.length) return [...profileCanonListSol];
+  const fromBal = profileSolFromStructured();
+  if (fromBal?.sol?.length) return [...fromBal.sol];
+  return [...profListSol];
 }
 
 function profileDisplayEvm() {
-  return profileCanonListEvm.length ? [...profileCanonListEvm] : [...profListEvm];
+  if (profileCanonListEvm.length) return [...profileCanonListEvm];
+  const fromBal = profileSolFromStructured();
+  if (fromBal?.evm?.length) return [...fromBal.evm];
+  return [...profListEvm];
 }
 
 async function publish() {
@@ -268,6 +420,7 @@ async function publish() {
     profileCanonSeenEvm.clear();
     profileCanonListSol.length = 0;
     profileCanonListEvm.length = 0;
+    balancesByUserId.clear();
     profileBuddyId = null;
     pendingUserDetail = null;
     lastProfileSlugPublished = slug;
