@@ -1,0 +1,167 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <title>FOMO Deploy</title>
+    <style>
+      :root {
+        color-scheme: dark;
+        --bg: #0f1115;
+        --fg: #e8eaed;
+        --muted: #9aa0a6;
+        --accent: #8ab4f8;
+        --border: #2d3139;
+      }
+      body {
+        font: 13px/1.45 system-ui, sans-serif;
+        margin: 0;
+        padding: 12px;
+        min-width: 340px;
+        max-width: 420px;
+        background: var(--bg);
+        color: var(--fg);
+      }
+      h1 {
+        font-size: 15px;
+        font-weight: 600;
+        margin: 0 0 10px;
+      }
+      label {
+        display: block;
+        font-size: 11px;
+        color: var(--muted);
+        margin-top: 8px;
+        margin-bottom: 4px;
+      }
+      input,
+      textarea {
+        width: 100%;
+        box-sizing: border-box;
+        background: #1a1d24;
+        border: 1px solid var(--border);
+        border-radius: 6px;
+        color: var(--fg);
+        padding: 8px 10px;
+        font: inherit;
+      }
+      textarea {
+        min-height: 72px;
+        resize: vertical;
+        font-family: ui-monospace, monospace;
+        font-size: 11px;
+      }
+      button {
+        margin-top: 10px;
+        width: 100%;
+        padding: 10px 12px;
+        border-radius: 8px;
+        border: none;
+        background: var(--accent);
+        color: #0f1115;
+        font-weight: 600;
+        cursor: pointer;
+      }
+      button.secondary {
+        background: transparent;
+        color: var(--accent);
+        border: 1px solid var(--border);
+      }
+      button:disabled {
+        opacity: 0.5;
+        cursor: not-allowed;
+      }
+      .row {
+        display: flex;
+        gap: 8px;
+      }
+      .row button {
+        flex: 1;
+        margin-top: 8px;
+      }
+      .hint {
+        font-size: 11px;
+        color: var(--muted);
+        margin-top: 8px;
+      }
+      .status {
+        margin-top: 10px;
+        padding: 8px;
+        border-radius: 6px;
+        background: #1a1d24;
+        border: 1px solid var(--border);
+        font-size: 11px;
+        white-space: pre-wrap;
+        word-break: break-word;
+        max-height: 160px;
+        overflow-y: auto;
+      }
+      .section-title {
+        font-size: 12px;
+        font-weight: 600;
+        margin: 14px 0 6px;
+        color: var(--muted);
+        text-transform: uppercase;
+        letter-spacing: 0.04em;
+      }
+      .scan-list {
+        font-size: 11px;
+        font-family: ui-monospace, monospace;
+        word-break: break-all;
+        color: var(--muted);
+        margin-bottom: 6px;
+        max-height: 72px;
+        overflow-y: auto;
+      }
+      .scan-list strong {
+        color: var(--fg);
+        font-weight: 600;
+        margin-right: 6px;
+      }
+    </style>
+  </head>
+  <body>
+    <h1>FOMO Deploy</h1>
+
+    <div class="section-title">Relay API</div>
+    <label for="apiBase">Base URL (no trailing slash)</label>
+    <input id="apiBase" type="url" placeholder="http://localhost:8787" autocomplete="off" />
+
+    <div class="section-title">From fomo.family</div>
+    <label for="creator">Creator wallet — Solana (Pump deploy)</label>
+    <input id="creator" type="text" placeholder="Solana pubkey; use First Solana for Pump" spellcheck="false" />
+
+    <div class="row">
+      <button type="button" class="secondary" id="useFirstSol">First Solana</button>
+      <button type="button" class="secondary" id="useFirstEvm">First EVM</button>
+    </div>
+    <div class="row">
+      <button type="button" class="secondary" id="rescan">Rescan tab</button>
+    </div>
+
+    <label class="section-title" style="margin-top: 10px">Scanned on page</label>
+    <div id="scanSol" class="scan-list" aria-label="Solana addresses"></div>
+    <div id="scanEvm" class="scan-list" aria-label="EVM addresses"></div>
+
+    <div class="section-title">Token</div>
+    <label for="name">Name</label>
+    <input id="name" type="text" maxlength="32" placeholder="My coin" />
+
+    <label for="symbol">Symbol</label>
+    <input id="symbol" type="text" maxlength="10" placeholder="COIN" />
+
+    <label for="uri">Metadata URI (HTTPS JSON)</label>
+    <input id="uri" type="url" placeholder="https://…/metadata.json" />
+
+    <button type="button" id="prepare">Prepare deployment</button>
+
+    <p class="hint">
+      Scraper finds <strong>Solana</strong> (base58) and <strong>EVM</strong> (<code>0x…</code>) strings
+      in the page. Pump deploy needs a <strong>Solana</strong> creator; use First EVM only if you copy
+      that address elsewhere.
+    </p>
+
+    <div id="status" class="status" hidden></div>
+
+    <script src="popup.js"></script>
+  </body>
+</html>
