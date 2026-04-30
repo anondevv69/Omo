@@ -56,9 +56,6 @@ function renderList(el, label, addrs) {
 async function refreshFromStorage() {
   const session = await chrome.storage.local.get([
     "lastScanAt",
-    "lastAddresses",
-    "lastSolanaAddresses",
-    "lastEvmAddresses",
     "lastUrl",
     "lastProfileSlug",
     "lastProfileSolana",
@@ -105,45 +102,12 @@ async function refreshFromStorage() {
     session.lastProfileEvm ?? []
   );
 
-  const sol = session.lastSolanaAddresses ?? session.lastAddresses ?? [];
-  const evm = session.lastEvmAddresses ?? [];
-  renderList(document.getElementById("scanSol"), "Solana", sol);
-  renderList(document.getElementById("scanEvm"), "EVM", evm);
-
   const youSol = session.lastYouSolana ?? [];
   creatorEl.value = youSol[0] ? youSol[0] : "";
   creatorEl.placeholder = youSol.length
     ? ""
     : "Refresh after sign-in — your Solana wallet not detected yet";
 }
-
-async function copyToClipboard(text, label) {
-  if (!text) {
-    showStatus(`No ${label} on page scan yet.`, true);
-    return;
-  }
-  try {
-    await navigator.clipboard.writeText(text);
-    showStatus(`${label} copied.`, false);
-  } catch {
-    showStatus("Could not copy — select and copy manually.", true);
-  }
-}
-
-document.getElementById("copyPageSol").addEventListener("click", async () => {
-  const session = await chrome.storage.local.get([
-    "lastSolanaAddresses",
-    "lastAddresses",
-  ]);
-  const sol = session.lastSolanaAddresses ?? session.lastAddresses ?? [];
-  await copyToClipboard(sol[0], "Solana address");
-});
-
-document.getElementById("copyPageEvm").addEventListener("click", async () => {
-  const session = await chrome.storage.local.get(["lastEvmAddresses"]);
-  const evm = session.lastEvmAddresses ?? [];
-  await copyToClipboard(evm[0], "EVM address");
-});
 
 document.getElementById("rescan").addEventListener("click", async () => {
   const tabId = await findFomoTabId();
