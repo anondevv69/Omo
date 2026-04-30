@@ -1,7 +1,12 @@
 /**
  * Runs in the page (MAIN world). Intercepts FOMO prod-api JSON and posts to the content script.
+ * Loaded via chrome.scripting.executeScript (CSP blocks extension <script> tags on fomo.family).
  */
 (function () {
+  const w = /** @type {Window & { __fomoDeploySniffer?: boolean }} */ (window);
+  if (w.__fomoDeploySniffer) return;
+  w.__fomoDeploySniffer = true;
+
   const SOURCE = "fomo-deploy-sniffer";
   const RE_SOL = /\b[1-9A-HJ-NP-Za-km-z]{43,44}\b/g;
   const RE_EVM = /\b0x[a-fA-F0-9]{40}\b/g;

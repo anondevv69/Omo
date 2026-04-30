@@ -149,13 +149,36 @@ document.getElementById("rescan").addEventListener("click", async () => {
     showStatus("Open fomo.family in a tab, load a profile or balances, then tap Refresh.", true);
     return;
   }
+  showStatus("Attaching…", false);
   try {
-    await chrome.tabs.sendMessage(tabId, { type: "SCAN" });
-  } catch {
-    showStatus("On your fomo tab press ⌘⇧R, then Refresh again.", true);
+    const inj = await chrome.runtime.sendMessage({
+      type: "INSTALL_MAIN_SNIFFER",
+      tabId,
+    });
+    if (!inj?.ok) {
+      showStatus(
+        `Could not hook this page (${inj?.error || "unknown"}). Try a full reload of the fomo tab.`,
+        true
+      );
+      return;
+    }
+    const scan = await chrome.tabs.sendMessage(tabId, { type: "SCAN" });
+    if (scan && scan.ok === false) {
+      showStatus(scan.error || "Scan failed", true);
+      return;
+    }
+  } catch (e) {
+    showStatus(e instanceof Error ? e.message : String(e), true);
     return;
   }
   await refreshFromStorage();
+  const s = await chrome.storage.session.get(["fomoLoggedIn"]);
+  showStatus(
+    s.fomoLoggedIn === true
+      ? "Updated. If wallets are still empty, trigger Holders or navigate once, then Refresh again."
+      : "Hooked. Use the site until API calls run, then Refresh again.",
+    false
+  );
 });
 
 prepareBtn.addEventListener("click", async () => {

@@ -1,13 +1,16 @@
 {
   "manifest_version": 3,
   "name": "FOMO Deploy (preview)",
-  "version": "0.5.1",
+  "version": "0.5.4",
   "description": "Reads wallets from fomo.family (DOM + API) and calls your relay API to prepare Pump deployments.",
   "action": {
     "default_title": "FOMO Deploy",
     "default_popup": "popup.html"
   },
-  "permissions": ["storage", "activeTab", "tabs"],
+  "background": {
+    "service_worker": "background.js"
+  },
+  "permissions": ["storage", "activeTab", "tabs", "scripting"],
   "host_permissions": [
     "https://fomo.family/*",
     "https://www.fomo.family/*",
@@ -29,3 +32,4 @@
     }
   ]
 }
+

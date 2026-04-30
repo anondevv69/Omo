@@ -38,18 +38,13 @@ let profileBuddyId = null;
 /** @type {{ id: string; address: string | null; evmAddress: string | null } | null} */
 let pendingUserDetail = null;
 
-function injectPageScript() {
-  try {
-    const el = document.createElement("script");
-    el.src = chrome.runtime.getURL("inject.js");
-    el.onload = () => el.remove();
-    (document.head || document.documentElement).appendChild(el);
-  } catch (_) {
-    /* ignore */
-  }
+function requestMainWorldSniffer() {
+  chrome.runtime.sendMessage({ type: "INSTALL_MAIN_SNIFFER" }, () => {
+    void chrome.runtime.lastError;
+  });
 }
 
-injectPageScript();
+requestMainWorldSniffer();
 
 function currentProfileSlug() {
   const m = location.pathname.match(/^\/profile\/([^/]+)/);
@@ -293,15 +288,24 @@ async function publish() {
   });
 }
 
-chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
-  if (msg?.type === "SCAN") {
-    void publish().then(() => {
+/** MV3 popup awaits this — use Promise return, not sendResponse + return true (channel closes). */
+chrome.runtime.onMessage.addListener((msg) => {
+  if (msg?.type !== "SCAN") return;
+
+  return publish()
+    .then(() => {
       const dom = extractAddresses();
       const solana = mergeUnique(apiListSol, dom.solana);
-      sendResponse({ ok: true, solana: solana.length, evm: mergeUnique(apiListEvm, dom.evm).length });
-    });
-    return true;
-  }
+      return {
+        ok: true,
+        solana: solana.length,
+        evm: mergeUnique(apiListEvm, dom.evm).length,
+      };
+    })
+    .catch((err) => ({
+      ok: false,
+      error: String(err?.message || err),
+    }));
 });
 
 function startObservers() {
