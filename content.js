@@ -280,20 +280,23 @@ window.addEventListener("message", (event) => {
     recordBalancesStructured(d);
   }
 
-  for (const a of d.solana || []) {
-    if (!apiSeenSol.has(a)) {
-      apiSeenSol.add(a);
-      apiListSol.push(a);
+  const slug = currentProfileSlug();
+  /** On /profile/* skip blind JSON walk — it pulls every mint/program ID into "all wallets". */
+  if (!slug) {
+    for (const a of d.solana || []) {
+      if (!apiSeenSol.has(a)) {
+        apiSeenSol.add(a);
+        apiListSol.push(a);
+      }
     }
-  }
-  for (const a of d.evm || []) {
-    if (!apiSeenEvm.has(a)) {
-      apiSeenEvm.add(a);
-      apiListEvm.push(a);
+    for (const a of d.evm || []) {
+      if (!apiSeenEvm.has(a)) {
+        apiSeenEvm.add(a);
+        apiListEvm.push(a);
+      }
     }
   }
 
-  const slug = currentProfileSlug();
   const hasBalancesStruct =
     (d.balancesStructuredSolana?.length ?? 0) > 0 ||
     (d.balancesStructuredEvm?.length ?? 0) > 0;
@@ -394,6 +397,25 @@ function mergeUnique(primary, secondary) {
   return out;
 }
 
+/** One primary wallet per bucket for UI (same as YOU: single Sol + single EVM). */
+function primaryWallet(list) {
+  const first = list?.find((x) => typeof x === "string" && x.trim());
+  return first ? [first] : [];
+}
+
+function pageScanSolanaEvm(slug, dom) {
+  if (slug) {
+    return {
+      solana: mergeUnique(primaryWallet(youListSol), primaryWallet(profileDisplaySol())),
+      evm: mergeUnique(primaryWallet(youListEvm), primaryWallet(profileDisplayEvm())),
+    };
+  }
+  return {
+    solana: mergeUnique(apiListSol, dom.solana),
+    evm: mergeUnique(apiListEvm, dom.evm),
+  };
+}
+
 /** Prefer GET /users/{owner}, then structured balances for non-viewer UUID, then DOM/walk fallback */
 function profileDisplaySol() {
   if (profileCanonListSol.length) return [...profileCanonListSol];
@@ -427,8 +449,7 @@ async function publish() {
   }
 
   const dom = extractAddresses();
-  const solana = mergeUnique(apiListSol, dom.solana);
-  const evm = mergeUnique(apiListEvm, dom.evm);
+  const { solana, evm } = pageScanSolanaEvm(slug, dom);
 
   await chrome.storage.local.set({
     lastScanAt: Date.now(),
@@ -437,10 +458,10 @@ async function publish() {
     lastAddresses: solana,
     lastUrl: location.href,
     lastProfileSlug: slug,
-    lastProfileSolana: profileDisplaySol(),
-    lastProfileEvm: profileDisplayEvm(),
-    lastYouSolana: [...youListSol],
-    lastYouEvm: [...youListEvm],
+    lastProfileSolana: primaryWallet(profileDisplaySol()),
+    lastProfileEvm: primaryWallet(profileDisplayEvm()),
+    lastYouSolana: primaryWallet(youListSol),
+    lastYouEvm: primaryWallet(youListEvm),
   });
 }
 
@@ -451,11 +472,12 @@ chrome.runtime.onMessage.addListener((msg) => {
   return publish()
     .then(() => {
       const dom = extractAddresses();
-      const solana = mergeUnique(apiListSol, dom.solana);
+      const slug = currentProfileSlug();
+      const { solana, evm } = pageScanSolanaEvm(slug, dom);
       return {
         ok: true,
         solana: solana.length,
-        evm: mergeUnique(apiListEvm, dom.evm).length,
+        evm: evm.length,
       };
     })
     .catch((err) => ({
