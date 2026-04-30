@@ -86,8 +86,24 @@
     try {
       const u = new URL(url);
       const path = u.pathname || "";
-      if (!/^\/v2\/users\/[0-9a-f-]{36}$/i.test(path)) return null;
       if (/\/balances/i.test(path)) return null;
+
+      /** GET /v2/users/userHandle/{handle} — canonical profile wallets on /profile/:handle */
+      const byHandle = path.match(/^\/v2\/users\/userHandle\/([^/]+)$/i);
+      if (byHandle) {
+        const ro = data?.responseObject;
+        if (!ro || typeof ro !== "object") return null;
+        const hid = typeof ro.id === "string" ? ro.id : null;
+        if (!hid) return null;
+        return {
+          id: hid,
+          address: typeof ro.address === "string" ? ro.address : null,
+          evmAddress: typeof ro.evmAddress === "string" ? ro.evmAddress : null,
+          profileHandle: decodeURIComponent(byHandle[1]),
+        };
+      }
+
+      if (!/^\/v2\/users\/[0-9a-f-]{36}$/i.test(path)) return null;
       const m = path.match(/^\/v2\/users\/([0-9a-f-]{36})$/i);
       if (!m) return null;
       const ro = data?.responseObject;

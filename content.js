@@ -199,6 +199,27 @@ function applyUserDetailToBuckets(ud) {
   }
 
   if (slug) {
+    const ph = ud.profileHandle;
+    if (
+      ph &&
+      String(ph).toLowerCase() === String(slug).toLowerCase()
+    ) {
+      profileCanonSeenSol.clear();
+      profileCanonSeenEvm.clear();
+      profileCanonListSol.length = 0;
+      profileCanonListEvm.length = 0;
+      addCanon(
+        profileCanonListSol,
+        profileCanonListEvm,
+        profileCanonSeenSol,
+        profileCanonSeenEvm,
+        ud.address,
+        ud.evmAddress
+      );
+      pendingUserDetail = null;
+      return;
+    }
+
     const ownerId = ownerUuidForProfileCanon();
     if (ownerId && id === ownerId) {
       addCanon(
