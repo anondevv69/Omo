@@ -75,7 +75,10 @@ document.getElementById("rescan").addEventListener("click", async () => {
   try {
     await chrome.tabs.sendMessage(tab.id, { type: "SCAN" });
   } catch {
-    showStatus("Could not reach fomo.family content script. Open a fomo.family tab.", true);
+    showStatus(
+      "No content script on this tab. Focus a tab on fomo.family or www.fomo.family, hard-refresh (⌘⇧R), then try Rescan again.",
+      true
+    );
     return;
   }
   await refreshFromStorage();
