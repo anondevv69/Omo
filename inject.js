@@ -95,11 +95,28 @@
       const url = typeof req === "string" ? req : req?.url || "";
       if (!shouldSniffUrl(url)) return res;
       const clone = res.clone();
+      const isProdApi = url.includes("prod-api.fomo.family");
+
+      if (isProdApi && !clone.ok && (clone.status === 401 || clone.status === 403)) {
+        window.postMessage(
+          { source: SOURCE, type: "fomo-auth", ok: false },
+          "*"
+        );
+        return res;
+      }
+
       const ct = clone.headers.get("content-type") || "";
       if (!ct.includes("json")) return res;
       clone
         .json()
         .then((data) => {
+          if (isProdApi && clone.ok && data && data.success === true) {
+            window.postMessage(
+              { source: SOURCE, type: "fomo-auth", ok: true },
+              "*"
+            );
+          }
+
           const { solana: sWalk, evm: eWalk } = extractFromJson(data);
           const balancesUserId = parseBalancesUserId(url);
           const userDetail = parseUserDetailFromResponse(url, data);

@@ -128,6 +128,13 @@ function onBalancesSniff(balancesUserId) {
 
 window.addEventListener("message", (event) => {
   const d = event.data;
+  if (d?.source === MSG_SOURCE && d.type === "fomo-auth") {
+    void chrome.storage.session.set({
+      fomoLoggedIn: d.ok === true,
+      fomoAuthAt: Date.now(),
+    });
+    return;
+  }
   if (!d || d.source !== MSG_SOURCE || d.type !== "api-sniff") return;
 
   if (d.balancesUserId) {

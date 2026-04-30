@@ -114,11 +114,39 @@
         font-weight: 600;
         margin-right: 6px;
       }
+      .login-gate {
+        background: #2d1f14;
+        border: 1px solid #a9582a;
+        border-radius: 8px;
+        padding: 10px 12px;
+        margin-bottom: 12px;
+        font-size: 12px;
+        line-height: 1.45;
+        color: #fce8c8;
+      }
+      .login-gate[hidden] {
+        display: none;
+      }
+      body.extension-locked .locked {
+        opacity: 0.45;
+        pointer-events: none;
+      }
     </style>
   </head>
   <body>
     <h1>FOMO Deploy</h1>
 
+    <div id="login-gate" class="login-gate" hidden>
+      Sign in to <strong>fomo.family</strong> in this browser (same session as the tab). Use the app
+      until a screen loads that calls the API (home, balances, or a profile). Then tap
+      <strong>Refresh</strong>. Deploy stays off until FOMO accepts your session.
+    </div>
+
+    <div class="row">
+      <button type="button" class="secondary" id="rescan">Refresh</button>
+    </div>
+
+    <div id="app-root" class="locked">
     <p id="pageContext" class="context" hidden></p>
 
     <div class="section-title">You (logged in)</div>
@@ -141,9 +169,6 @@
       <button type="button" class="secondary" id="useFirstSol">First Solana (page)</button>
       <button type="button" class="secondary" id="useFirstEvm">First EVM (page)</button>
     </div>
-    <div class="row">
-      <button type="button" class="secondary" id="rescan">Refresh</button>
-    </div>
 
     <div class="section-title">Deploy as creator (Solana)</div>
     <label for="creator">Your creator wallet</label>
@@ -157,6 +182,7 @@
     <input id="symbol" type="text" maxlength="10" placeholder="COIN" />
 
     <button type="button" id="prepare">Prepare deployment</button>
+    </div>
 
     <div id="status" class="status" hidden></div>
 

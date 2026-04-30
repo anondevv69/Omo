@@ -10,6 +10,8 @@ const symbolEl = document.getElementById("symbol");
 const statusEl = document.getElementById("status");
 const prepareBtn = document.getElementById("prepare");
 const pageContextEl = document.getElementById("pageContext");
+const loginGateEl = document.getElementById("login-gate");
+const appRootEl = document.getElementById("app-root");
 
 function showStatus(text, err = false) {
   statusEl.hidden = false;
@@ -61,7 +63,14 @@ async function refreshFromStorage() {
     "lastProfileEvm",
     "lastYouSolana",
     "lastYouEvm",
+    "fomoLoggedIn",
   ]);
+
+  const loggedIn = session.fomoLoggedIn === true;
+  loginGateEl.hidden = loggedIn;
+  document.body.classList.toggle("extension-locked", !loggedIn);
+  appRootEl.inert = !loggedIn;
+  prepareBtn.disabled = !loggedIn;
 
   const slug = session.lastProfileSlug;
   if (slug) {
@@ -150,6 +159,12 @@ document.getElementById("rescan").addEventListener("click", async () => {
 });
 
 prepareBtn.addEventListener("click", async () => {
+  const session = await chrome.storage.session.get(["fomoLoggedIn"]);
+  if (session.fomoLoggedIn !== true) {
+    showStatus("Sign in to fomo.family first, then Refresh.", true);
+    return;
+  }
+
   const base = RELAY_ORIGIN.replace(/\/$/, "");
   const creatorAddress = creatorEl.value.trim();
   const name = nameEl.value.trim();

@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "FOMO Deploy (preview)",
-  "version": "0.4.1",
+  "version": "0.5.0",
   "description": "Reads wallets from fomo.family (DOM + API) and calls your relay API to prepare Pump deployments.",
   "action": {
     "default_title": "FOMO Deploy",
