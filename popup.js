@@ -7,6 +7,8 @@ const RELAY_ORIGIN = "https://fomofam-production.up.railway.app";
 const creatorEl = document.getElementById("creator");
 const nameEl = document.getElementById("name");
 const symbolEl = document.getElementById("symbol");
+const imageEl = document.getElementById("image");
+const descriptionEl = document.getElementById("description");
 const statusEl = document.getElementById("status");
 const prepareBtn = document.getElementById("prepare");
 const pageContextEl = document.getElementById("pageContext");
@@ -109,38 +111,38 @@ async function refreshFromStorage() {
   renderList(document.getElementById("scanEvm"), "EVM", evm);
 
   const youSol = session.lastYouSolana ?? [];
-  if (youSol.length && !creatorEl.value.trim()) {
-    creatorEl.value = youSol[0];
-  } else if (sol.length && !creatorEl.value.trim()) {
-    creatorEl.value = sol[0];
+  creatorEl.value = youSol[0] ? youSol[0] : "";
+  creatorEl.placeholder = youSol.length
+    ? ""
+    : "Refresh after sign-in — your Solana wallet not detected yet";
+}
+
+async function copyToClipboard(text, label) {
+  if (!text) {
+    showStatus(`No ${label} on page scan yet.`, true);
+    return;
+  }
+  try {
+    await navigator.clipboard.writeText(text);
+    showStatus(`${label} copied.`, false);
+  } catch {
+    showStatus("Could not copy — select and copy manually.", true);
   }
 }
 
-document.getElementById("useFirstSol").addEventListener("click", async () => {
+document.getElementById("copyPageSol").addEventListener("click", async () => {
   const session = await chrome.storage.local.get([
     "lastSolanaAddresses",
     "lastAddresses",
   ]);
   const sol = session.lastSolanaAddresses ?? session.lastAddresses ?? [];
-  if (sol[0]) creatorEl.value = sol[0];
+  await copyToClipboard(sol[0], "Solana address");
 });
 
-document.getElementById("useYourSol").addEventListener("click", async () => {
-  const session = await chrome.storage.local.get(["lastYouSolana"]);
-  const sol = session.lastYouSolana ?? [];
-  if (sol[0]) creatorEl.value = sol[0];
-});
-
-document.getElementById("useProfileSol").addEventListener("click", async () => {
-  const session = await chrome.storage.local.get(["lastProfileSolana"]);
-  const sol = session.lastProfileSolana ?? [];
-  if (sol[0]) creatorEl.value = sol[0];
-});
-
-document.getElementById("useFirstEvm").addEventListener("click", async () => {
+document.getElementById("copyPageEvm").addEventListener("click", async () => {
   const session = await chrome.storage.local.get(["lastEvmAddresses"]);
   const evm = session.lastEvmAddresses ?? [];
-  if (evm[0]) creatorEl.value = evm[0];
+  await copyToClipboard(evm[0], "EVM address");
 });
 
 document.getElementById("rescan").addEventListener("click", async () => {
@@ -189,27 +191,39 @@ prepareBtn.addEventListener("click", async () => {
   }
 
   const base = RELAY_ORIGIN.replace(/\/$/, "");
-  const creatorAddress = creatorEl.value.trim();
+  const sessionKeys = await chrome.storage.local.get(["lastYouSolana"]);
+  const youSol = sessionKeys.lastYouSolana ?? [];
+  const creatorAddress = (youSol[0] || creatorEl.value || "").trim();
   const name = nameEl.value.trim();
   const symbol = symbolEl.value.trim();
+  const image = imageEl.value.trim();
+  const description = descriptionEl.value.trim();
 
   if (!creatorAddress || !name || !symbol) {
-    showStatus("Choose a Solana creator wallet and enter name + symbol.", true);
+    showStatus(
+      !creatorAddress
+        ? "Your wallet wasn’t detected. Stay signed in on fomo.family and tap Refresh."
+        : "Enter token name and symbol.",
+      true
+    );
     return;
   }
 
   prepareBtn.disabled = true;
-  showStatus("Preparing…");
+  showStatus("Preparing deployment…");
 
   try {
+    const payload = {
+      creatorAddress,
+      name,
+      symbol,
+      ...(description ? { description } : {}),
+      ...(image ? { image } : {}),
+    };
     const res = await fetch(`${base}/api/deploy/prepare`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        creatorAddress,
-        name,
-        symbol,
-      }),
+      body: JSON.stringify(payload),
     });
     const data = await res.json().catch(() => ({}));
     if (!res.ok) {

@@ -131,6 +131,32 @@
         opacity: 0.45;
         pointer-events: none;
       }
+      input[readonly] {
+        opacity: 0.92;
+        cursor: default;
+      }
+      textarea {
+        width: 100%;
+        box-sizing: border-box;
+        background: #1a1d24;
+        border: 1px solid var(--border);
+        border-radius: 6px;
+        color: var(--fg);
+        padding: 8px 10px;
+        font: inherit;
+        resize: vertical;
+        min-height: 52px;
+      }
+      .hint {
+        font-size: 11px;
+        color: var(--muted);
+        margin: 0 0 8px;
+        line-height: 1.4;
+      }
+      .optional {
+        font-weight: 400;
+        color: var(--muted);
+      }
     </style>
   </head>
   <body>
@@ -162,17 +188,14 @@
     <div id="scanEvm" class="scan-list" aria-label="EVM addresses"></div>
 
     <div class="row">
-      <button type="button" class="secondary" id="useYourSol">Your Solana</button>
-      <button type="button" class="secondary" id="useProfileSol">Profile Solana</button>
-    </div>
-    <div class="row">
-      <button type="button" class="secondary" id="useFirstSol">First Solana (page)</button>
-      <button type="button" class="secondary" id="useFirstEvm">First EVM (page)</button>
+      <button type="button" class="secondary" id="copyPageSol">Copy first Solana (page)</button>
+      <button type="button" class="secondary" id="copyPageEvm">Copy first EVM (page)</button>
     </div>
 
     <div class="section-title">Deploy as creator (Solana)</div>
+    <p class="hint">Uses your logged-in wallet only — not the profile you’re viewing.</p>
     <label for="creator">Your creator wallet</label>
-    <input id="creator" type="text" placeholder="Pick from buttons above" spellcheck="false" />
+    <input id="creator" type="text" readonly spellcheck="false" />
 
     <div class="section-title">Token</div>
     <label for="name">Name</label>
@@ -181,7 +204,13 @@
     <label for="symbol">Symbol</label>
     <input id="symbol" type="text" maxlength="10" placeholder="COIN" />
 
-    <button type="button" id="prepare">Prepare deployment</button>
+    <label for="image">Image URL <span class="optional">(optional)</span></label>
+    <input id="image" type="url" placeholder="https://…png or ipfs://…" spellcheck="false" />
+
+    <label for="description">Description <span class="optional">(optional)</span></label>
+    <textarea id="description" rows="3" maxlength="500" placeholder="Short description for metadata"></textarea>
+
+    <button type="button" id="prepare">Deploy</button>
     </div>
 
     <div id="status" class="status" hidden></div>
