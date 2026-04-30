@@ -15,6 +15,14 @@ const apiListSol = [];
 /** @type {string[]} */
 const apiListEvm = [];
 
+/** Wallets from balances API while URL is /profile/:slug */
+const profSeenSol = new Set();
+const profSeenEvm = new Set();
+const profListSol = [];
+const profListEvm = [];
+/** @type {string | null} */
+let lastProfileSlugPublished = null;
+
 function injectPageScript() {
   try {
     const el = document.createElement("script");
@@ -28,19 +36,44 @@ function injectPageScript() {
 
 injectPageScript();
 
+function currentProfileSlug() {
+  const m = location.pathname.match(/^\/profile\/([^/]+)/);
+  return m ? decodeURIComponent(m[1]) : null;
+}
+
+function isProfileBalancesUrl(url) {
+  if (!url || typeof url !== "string") return false;
+  return /\/v2\/users\/[^/]+\/balances/.test(url) && url.includes("prod-api.fomo.family");
+}
+
 window.addEventListener("message", (event) => {
   const d = event.data;
   if (!d || d.source !== MSG_SOURCE || d.type !== "api-sniff") return;
+
+  const slug = currentProfileSlug();
+
   for (const a of d.solana || []) {
     if (!apiSeenSol.has(a)) {
       apiSeenSol.add(a);
       apiListSol.push(a);
+    }
+    if (slug && isProfileBalancesUrl(d.url)) {
+      if (!profSeenSol.has(a)) {
+        profSeenSol.add(a);
+        profListSol.push(a);
+      }
     }
   }
   for (const a of d.evm || []) {
     if (!apiSeenEvm.has(a)) {
       apiSeenEvm.add(a);
       apiListEvm.push(a);
+    }
+    if (slug && isProfileBalancesUrl(d.url)) {
+      if (!profSeenEvm.has(a)) {
+        profSeenEvm.add(a);
+        profListEvm.push(a);
+      }
     }
   }
   void publish();
@@ -111,6 +144,15 @@ function mergeUnique(primary, secondary) {
 }
 
 async function publish() {
+  const slug = currentProfileSlug();
+  if (slug !== lastProfileSlugPublished) {
+    profSeenSol.clear();
+    profSeenEvm.clear();
+    profListSol.length = 0;
+    profListEvm.length = 0;
+    lastProfileSlugPublished = slug;
+  }
+
   const dom = extractAddresses();
   const solana = mergeUnique(apiListSol, dom.solana);
   const evm = mergeUnique(apiListEvm, dom.evm);
@@ -121,6 +163,9 @@ async function publish() {
     lastEvmAddresses: evm,
     lastAddresses: solana,
     lastUrl: location.href,
+    lastProfileSlug: slug,
+    lastProfileSolana: [...profListSol],
+    lastProfileEvm: [...profListEvm],
   });
 }
 

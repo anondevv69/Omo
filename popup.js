@@ -1,12 +1,15 @@
-const apiBaseEl = document.getElementById("apiBase");
+/**
+ * Relay is fixed to your Railway app. Change here if you fork / self-host.
+ * @type {string}
+ */
+const RELAY_ORIGIN = "https://fomofam-production.up.railway.app";
+
 const creatorEl = document.getElementById("creator");
 const nameEl = document.getElementById("name");
 const symbolEl = document.getElementById("symbol");
-const uriEl = document.getElementById("uri");
 const statusEl = document.getElementById("status");
 const prepareBtn = document.getElementById("prepare");
-
-const STORAGE_API = "relayApiBase";
+const pageContextEl = document.getElementById("pageContext");
 
 function showStatus(text, err = false) {
   statusEl.hidden = false;
@@ -29,7 +32,6 @@ function isFomoUrl(url) {
   }
 }
 
-/** Prefer focused fomo tab; otherwise any open fomo.family tab (popup is often not on fomo). */
 async function findFomoTabId() {
   const active = await getActiveTab();
   if (active?.id && isFomoUrl(active.url)) return active.id;
@@ -40,20 +42,11 @@ async function findFomoTabId() {
   return matches[0]?.id ?? null;
 }
 
-function renderScanLists(session) {
-  const solEl = document.getElementById("scanSol");
-  const evmEl = document.getElementById("scanEvm");
-  const sol = session.lastSolanaAddresses ?? session.lastAddresses ?? [];
-  const evm = session.lastEvmAddresses ?? [];
-
-  solEl.innerHTML =
-    sol.length === 0
-      ? "<strong>Solana:</strong> —"
-      : `<strong>Solana:</strong> ${sol.map((a) => `<span>${a}</span>`).join(" · ")}`;
-  evmEl.innerHTML =
-    evm.length === 0
-      ? "<strong>EVM:</strong> —"
-      : `<strong>EVM:</strong> ${evm.map((a) => `<span>${a}</span>`).join(" · ")}`;
+function renderList(el, label, addrs) {
+  el.innerHTML =
+    !addrs || addrs.length === 0
+      ? `<strong>${label}:</strong> —`
+      : `<strong>${label}:</strong> ${addrs.map((a) => `<span>${a}</span>`).join(" · ")}`;
 }
 
 async function refreshFromStorage() {
@@ -63,13 +56,36 @@ async function refreshFromStorage() {
     "lastSolanaAddresses",
     "lastEvmAddresses",
     "lastUrl",
+    "lastProfileSlug",
+    "lastProfileSolana",
+    "lastProfileEvm",
   ]);
-  const local = await chrome.storage.local.get([STORAGE_API]);
-  if (local[STORAGE_API]) apiBaseEl.value = local[STORAGE_API];
 
-  renderScanLists(session);
+  const slug = session.lastProfileSlug;
+  if (slug) {
+    pageContextEl.hidden = false;
+    pageContextEl.innerHTML = `Viewing profile: <strong>@${slug}</strong>`;
+  } else {
+    pageContextEl.hidden = true;
+    pageContextEl.textContent = "";
+  }
+
+  renderList(
+    document.getElementById("scanProfileSol"),
+    "Solana",
+    session.lastProfileSolana ?? []
+  );
+  renderList(
+    document.getElementById("scanProfileEvm"),
+    "EVM",
+    session.lastProfileEvm ?? []
+  );
 
   const sol = session.lastSolanaAddresses ?? session.lastAddresses ?? [];
+  const evm = session.lastEvmAddresses ?? [];
+  renderList(document.getElementById("scanSol"), "Solana", sol);
+  renderList(document.getElementById("scanEvm"), "EVM", evm);
+
   if (sol.length && !creatorEl.value.trim()) {
     creatorEl.value = sol[0];
   }
@@ -84,6 +100,12 @@ document.getElementById("useFirstSol").addEventListener("click", async () => {
   if (sol[0]) creatorEl.value = sol[0];
 });
 
+document.getElementById("useProfileSol").addEventListener("click", async () => {
+  const session = await chrome.storage.session.get(["lastProfileSolana"]);
+  const sol = session.lastProfileSolana ?? [];
+  if (sol[0]) creatorEl.value = sol[0];
+});
+
 document.getElementById("useFirstEvm").addEventListener("click", async () => {
   const session = await chrome.storage.session.get(["lastEvmAddresses"]);
   const evm = session.lastEvmAddresses ?? [];
@@ -93,46 +115,31 @@ document.getElementById("useFirstEvm").addEventListener("click", async () => {
 document.getElementById("rescan").addEventListener("click", async () => {
   const tabId = await findFomoTabId();
   if (!tabId) {
-    showStatus(
-      "Open https://fomo.family in a browser tab, log in, open a profile or balances. Leave that tab open, then click Rescan again (the focused tab can be this popup’s window — we look for any fomo tab).",
-      true
-    );
+    showStatus("Open fomo.family in a tab, load a profile or balances, then tap Refresh.", true);
     return;
   }
   try {
     await chrome.tabs.sendMessage(tabId, { type: "SCAN" });
   } catch {
-    showStatus(
-      "Found a fomo tab but the extension isn’t injected yet. On that tab press ⌘⇧R (hard refresh), then Rescan again.",
-      true
-    );
+    showStatus("On your fomo tab press ⌘⇧R, then Refresh again.", true);
     return;
   }
   await refreshFromStorage();
 });
 
-apiBaseEl.addEventListener("change", () => {
-  void chrome.storage.local.set({ [STORAGE_API]: apiBaseEl.value.trim() });
-});
-
 prepareBtn.addEventListener("click", async () => {
-  const base = apiBaseEl.value.trim().replace(/\/$/, "");
+  const base = RELAY_ORIGIN.replace(/\/$/, "");
   const creatorAddress = creatorEl.value.trim();
   const name = nameEl.value.trim();
   const symbol = symbolEl.value.trim();
-  const metadataUri = uriEl.value.trim();
 
-  if (!base) {
-    showStatus("Set relay API base URL (e.g. http://localhost:8787)", true);
-    return;
-  }
-  if (!creatorAddress || !name || !symbol || !metadataUri) {
-    showStatus("Fill creator wallet, name, symbol, and metadata URI.", true);
+  if (!creatorAddress || !name || !symbol) {
+    showStatus("Choose a Solana creator wallet and enter name + symbol.", true);
     return;
   }
 
   prepareBtn.disabled = true;
-  showStatus("Calling /api/deploy/prepare …");
+  showStatus("Preparing…");
 
   try {
     const res = await fetch(`${base}/api/deploy/prepare`, {
@@ -142,7 +149,6 @@ prepareBtn.addEventListener("click", async () => {
         creatorAddress,
         name,
         symbol,
-        metadataUri,
       }),
     });
     const data = await res.json().catch(() => ({}));
@@ -150,12 +156,12 @@ prepareBtn.addEventListener("click", async () => {
       showStatus(JSON.stringify(data, null, 2) || res.statusText, true);
       return;
     }
-    await chrome.storage.local.set({ [STORAGE_API]: base });
     showStatus(
       JSON.stringify(
         {
           mintAddress: data.mintAddress,
           feePayer: data.feePayer,
+          metadataUri: data.metadataUri,
           transactionBase64: data.transactionBase64,
           next: data.hint,
         },

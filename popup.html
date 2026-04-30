@@ -16,25 +16,24 @@
         font: 13px/1.45 system-ui, sans-serif;
         margin: 0;
         padding: 12px;
-        min-width: 340px;
-        max-width: 420px;
+        min-width: 320px;
+        max-width: 400px;
         background: var(--bg);
         color: var(--fg);
       }
       h1 {
         font-size: 15px;
         font-weight: 600;
-        margin: 0 0 10px;
+        margin: 0 0 12px;
       }
       label {
         display: block;
         font-size: 11px;
         color: var(--muted);
-        margin-top: 8px;
+        margin-top: 10px;
         margin-bottom: 4px;
       }
-      input,
-      textarea {
+      input {
         width: 100%;
         box-sizing: border-box;
         background: #1a1d24;
@@ -43,12 +42,6 @@
         color: var(--fg);
         padding: 8px 10px;
         font: inherit;
-      }
-      textarea {
-        min-height: 72px;
-        resize: vertical;
-        font-family: ui-monospace, monospace;
-        font-size: 11px;
       }
       button {
         margin-top: 10px;
@@ -78,11 +71,6 @@
         flex: 1;
         margin-top: 8px;
       }
-      .hint {
-        font-size: 11px;
-        color: var(--muted);
-        margin-top: 8px;
-      }
       .status {
         margin-top: 10px;
         padding: 8px;
@@ -92,24 +80,33 @@
         font-size: 11px;
         white-space: pre-wrap;
         word-break: break-word;
-        max-height: 160px;
+        max-height: 140px;
         overflow-y: auto;
       }
       .section-title {
-        font-size: 12px;
+        font-size: 11px;
         font-weight: 600;
         margin: 14px 0 6px;
         color: var(--muted);
         text-transform: uppercase;
         letter-spacing: 0.04em;
       }
+      .context {
+        font-size: 12px;
+        color: var(--fg);
+        margin-bottom: 8px;
+        line-height: 1.4;
+      }
+      .context strong {
+        color: var(--accent);
+      }
       .scan-list {
         font-size: 11px;
         font-family: ui-monospace, monospace;
         word-break: break-all;
         color: var(--muted);
-        margin-bottom: 6px;
-        max-height: 72px;
+        margin-bottom: 8px;
+        max-height: 64px;
         overflow-y: auto;
       }
       .scan-list strong {
@@ -122,25 +119,28 @@
   <body>
     <h1>FOMO Deploy</h1>
 
-    <div class="section-title">Relay API</div>
-    <label for="apiBase">Base URL (no trailing slash)</label>
-    <input id="apiBase" type="url" placeholder="http://localhost:8787" autocomplete="off" />
+    <p id="pageContext" class="context" hidden></p>
 
-    <div class="section-title">From fomo.family</div>
-    <label for="creator">Creator wallet — Solana (Pump deploy)</label>
-    <input id="creator" type="text" placeholder="Solana pubkey; use First Solana for Pump" spellcheck="false" />
+    <div class="section-title">This profile</div>
+    <div id="scanProfileSol" class="scan-list"></div>
+    <div id="scanProfileEvm" class="scan-list"></div>
 
-    <div class="row">
-      <button type="button" class="secondary" id="useFirstSol">First Solana</button>
-      <button type="button" class="secondary" id="useFirstEvm">First EVM</button>
-    </div>
-    <div class="row">
-      <button type="button" class="secondary" id="rescan">Rescan tab</button>
-    </div>
-
-    <label class="section-title" style="margin-top: 10px">Scanned on page</label>
+    <div class="section-title">All wallets on this page</div>
     <div id="scanSol" class="scan-list" aria-label="Solana addresses"></div>
     <div id="scanEvm" class="scan-list" aria-label="EVM addresses"></div>
+
+    <div class="row">
+      <button type="button" class="secondary" id="useProfileSol">Use profile Solana</button>
+      <button type="button" class="secondary" id="useFirstSol">Use first Solana</button>
+    </div>
+    <div class="row">
+      <button type="button" class="secondary" id="useFirstEvm">Use first EVM</button>
+      <button type="button" class="secondary" id="rescan">Refresh</button>
+    </div>
+
+    <div class="section-title">Deploy as creator (Solana)</div>
+    <label for="creator">Your creator wallet</label>
+    <input id="creator" type="text" placeholder="Pick from buttons above" spellcheck="false" />
 
     <div class="section-title">Token</div>
     <label for="name">Name</label>
@@ -149,16 +149,7 @@
     <label for="symbol">Symbol</label>
     <input id="symbol" type="text" maxlength="10" placeholder="COIN" />
 
-    <label for="uri">Metadata URI (HTTPS JSON)</label>
-    <input id="uri" type="url" placeholder="https://…/metadata.json" />
-
     <button type="button" id="prepare">Prepare deployment</button>
-
-    <p class="hint">
-      Keep a <strong>fomo.family</strong> tab open (logged in, profile or balances loaded). Rescan uses
-      that tab even if Railway or this popup is focused. Hard-refresh fomo once after installing the
-      extension. Pump needs a <strong>Solana</strong> creator.
-    </p>
 
     <div id="status" class="status" hidden></div>
 
