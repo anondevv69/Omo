@@ -1,27 +1,42 @@
 /**
- * Isolated world: DOM scrape + merge addresses sniffed from FOMO API (via inject.js).
+ * Isolated world: DOM scrape + FOMO API sniff (inject.js).
+ * Splits "you" vs "this profile" using GET /v2/users/{id} vs /balances on /profile/… pages.
  */
 const RE_SOLANA = /\b[1-9A-HJ-NP-Za-km-z]{43,44}\b/g;
 const RE_EVM = /\b0x[a-fA-F0-9]{40}\b/g;
 
 const MSG_SOURCE = "fomo-deploy-sniffer";
 
-/** @type {Set<string>} */
+/** All API walk addresses */
 const apiSeenSol = new Set();
-/** @type {Set<string>} */
 const apiSeenEvm = new Set();
-/** @type {string[]} */
 const apiListSol = [];
-/** @type {string[]} */
 const apiListEvm = [];
 
-/** Wallets from balances API while URL is /profile/:slug */
+/** Profile page: balances response wallets */
 const profSeenSol = new Set();
 const profSeenEvm = new Set();
 const profListSol = [];
 const profListEvm = [];
+
+/** Logged-in viewer: GET /v2/users/{id} where id ≠ profile balances user */
+const youSeenSol = new Set();
+const youSeenEvm = new Set();
+const youListSol = [];
+const youListEvm = [];
+
+/** Profile owner canonical from GET /v2/users/{profileUserId} */
+const profileCanonSeenSol = new Set();
+const profileCanonSeenEvm = new Set();
+const profileCanonListSol = [];
+const profileCanonListEvm = [];
+
 /** @type {string | null} */
 let lastProfileSlugPublished = null;
+/** User id from latest /balances on this profile tab */
+let profileBuddyId = null;
+/** @type {{ id: string; address: string | null; evmAddress: string | null } | null} */
+let pendingUserDetail = null;
 
 function injectPageScript() {
   try {
@@ -43,25 +58,86 @@ function currentProfileSlug() {
 
 function isProfileBalancesUrl(url) {
   if (!url || typeof url !== "string") return false;
-  return /\/v2\/users\/[^/]+\/balances/.test(url) && url.includes("prod-api.fomo.family");
+  return /\/v2\/users\/[^/]+\/balances/i.test(url) && url.includes("prod-api.fomo.family");
+}
+
+function applyUserDetailToBuckets(ud) {
+  const slug = currentProfileSlug();
+  const id = ud.id;
+  if (!id) return;
+
+  function addCanon(solArr, evmArr, seenS, seenE, addr, evmA) {
+    if (addr && !seenS.has(addr)) {
+      seenS.add(addr);
+      solArr.push(addr);
+    }
+    if (evmA && !seenE.has(evmA)) {
+      seenE.add(evmA);
+      evmArr.push(evmA);
+    }
+  }
+
+  if (slug) {
+    if (profileBuddyId && id === profileBuddyId) {
+      addCanon(
+        profileCanonListSol,
+        profileCanonListEvm,
+        profileCanonSeenSol,
+        profileCanonSeenEvm,
+        ud.address,
+        ud.evmAddress
+      );
+      pendingUserDetail = null;
+      return;
+    }
+    if (!profileBuddyId) {
+      pendingUserDetail = ud;
+      return;
+    }
+    addCanon(youListSol, youListEvm, youSeenSol, youSeenEvm, ud.address, ud.evmAddress);
+    return;
+  }
+
+  addCanon(youListSol, youListEvm, youSeenSol, youSeenEvm, ud.address, ud.evmAddress);
+}
+
+function pushYouFromDetail(ud) {
+  if (ud.address && !youSeenSol.has(ud.address)) {
+    youSeenSol.add(ud.address);
+    youListSol.push(ud.address);
+  }
+  if (ud.evmAddress && !youSeenEvm.has(ud.evmAddress)) {
+    youSeenEvm.add(ud.evmAddress);
+    youListEvm.push(ud.evmAddress);
+  }
+}
+
+function onBalancesSniff(balancesUserId) {
+  const slug = currentProfileSlug();
+  if (!slug || !balancesUserId) return;
+  profileBuddyId = balancesUserId;
+  if (pendingUserDetail) {
+    if (pendingUserDetail.id === profileBuddyId) {
+      applyUserDetailToBuckets(pendingUserDetail);
+    } else {
+      pushYouFromDetail(pendingUserDetail);
+    }
+    pendingUserDetail = null;
+  }
 }
 
 window.addEventListener("message", (event) => {
   const d = event.data;
   if (!d || d.source !== MSG_SOURCE || d.type !== "api-sniff") return;
 
-  const slug = currentProfileSlug();
+  if (d.balancesUserId) {
+    onBalancesSniff(d.balancesUserId);
+  }
 
   for (const a of d.solana || []) {
     if (!apiSeenSol.has(a)) {
       apiSeenSol.add(a);
       apiListSol.push(a);
-    }
-    if (slug && isProfileBalancesUrl(d.url)) {
-      if (!profSeenSol.has(a)) {
-        profSeenSol.add(a);
-        profListSol.push(a);
-      }
     }
   }
   for (const a of d.evm || []) {
@@ -69,13 +145,28 @@ window.addEventListener("message", (event) => {
       apiSeenEvm.add(a);
       apiListEvm.push(a);
     }
-    if (slug && isProfileBalancesUrl(d.url)) {
+  }
+
+  const slug = currentProfileSlug();
+  if (slug && d.balancesUserId && isProfileBalancesUrl(d.url)) {
+    for (const a of d.solana || []) {
+      if (!profSeenSol.has(a)) {
+        profSeenSol.add(a);
+        profListSol.push(a);
+      }
+    }
+    for (const a of d.evm || []) {
       if (!profSeenEvm.has(a)) {
         profSeenEvm.add(a);
         profListEvm.push(a);
       }
     }
   }
+
+  if (d.userDetail) {
+    applyUserDetailToBuckets(d.userDetail);
+  }
+
   void publish();
 });
 
@@ -143,6 +234,15 @@ function mergeUnique(primary, secondary) {
   return out;
 }
 
+/** Prefer canonical profile wallets when present */
+function profileDisplaySol() {
+  return profileCanonListSol.length ? [...profileCanonListSol] : [...profListSol];
+}
+
+function profileDisplayEvm() {
+  return profileCanonListEvm.length ? [...profileCanonListEvm] : [...profListEvm];
+}
+
 async function publish() {
   const slug = currentProfileSlug();
   if (slug !== lastProfileSlugPublished) {
@@ -150,6 +250,12 @@ async function publish() {
     profSeenEvm.clear();
     profListSol.length = 0;
     profListEvm.length = 0;
+    profileCanonSeenSol.clear();
+    profileCanonSeenEvm.clear();
+    profileCanonListSol.length = 0;
+    profileCanonListEvm.length = 0;
+    profileBuddyId = null;
+    pendingUserDetail = null;
     lastProfileSlugPublished = slug;
   }
 
@@ -164,8 +270,10 @@ async function publish() {
     lastAddresses: solana,
     lastUrl: location.href,
     lastProfileSlug: slug,
-    lastProfileSolana: [...profListSol],
-    lastProfileEvm: [...profListEvm],
+    lastProfileSolana: profileDisplaySol(),
+    lastProfileEvm: profileDisplayEvm(),
+    lastYouSolana: [...youListSol],
+    lastYouEvm: [...youListEvm],
   });
 }
 
@@ -174,8 +282,7 @@ chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
     void publish().then(() => {
       const dom = extractAddresses();
       const solana = mergeUnique(apiListSol, dom.solana);
-      const evm = mergeUnique(apiListEvm, dom.evm);
-      sendResponse({ ok: true, solana: solana.length, evm: evm.length });
+      sendResponse({ ok: true, solana: solana.length, evm: mergeUnique(apiListEvm, dom.evm).length });
     });
     return true;
   }

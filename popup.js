@@ -59,6 +59,8 @@ async function refreshFromStorage() {
     "lastProfileSlug",
     "lastProfileSolana",
     "lastProfileEvm",
+    "lastYouSolana",
+    "lastYouEvm",
   ]);
 
   const slug = session.lastProfileSlug;
@@ -69,6 +71,17 @@ async function refreshFromStorage() {
     pageContextEl.hidden = true;
     pageContextEl.textContent = "";
   }
+
+  renderList(
+    document.getElementById("scanYouSol"),
+    "Solana",
+    session.lastYouSolana ?? []
+  );
+  renderList(
+    document.getElementById("scanYouEvm"),
+    "EVM",
+    session.lastYouEvm ?? []
+  );
 
   renderList(
     document.getElementById("scanProfileSol"),
@@ -86,7 +99,10 @@ async function refreshFromStorage() {
   renderList(document.getElementById("scanSol"), "Solana", sol);
   renderList(document.getElementById("scanEvm"), "EVM", evm);
 
-  if (sol.length && !creatorEl.value.trim()) {
+  const youSol = session.lastYouSolana ?? [];
+  if (youSol.length && !creatorEl.value.trim()) {
+    creatorEl.value = youSol[0];
+  } else if (sol.length && !creatorEl.value.trim()) {
     creatorEl.value = sol[0];
   }
 }
@@ -97,6 +113,12 @@ document.getElementById("useFirstSol").addEventListener("click", async () => {
     "lastAddresses",
   ]);
   const sol = session.lastSolanaAddresses ?? session.lastAddresses ?? [];
+  if (sol[0]) creatorEl.value = sol[0];
+});
+
+document.getElementById("useYourSol").addEventListener("click", async () => {
+  const session = await chrome.storage.session.get(["lastYouSolana"]);
+  const sol = session.lastYouSolana ?? [];
   if (sol[0]) creatorEl.value = sol[0];
 });
 

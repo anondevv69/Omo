@@ -1,6 +1,5 @@
 /**
- * Runs in the page (MAIN world). Intercepts JSON from FOMO APIs and posts wallet-like
- * strings to the content script via window.postMessage.
+ * Runs in the page (MAIN world). Intercepts FOMO prod-api JSON and posts to the content script.
  */
 (function () {
   const SOURCE = "fomo-deploy-sniffer";
@@ -58,12 +57,34 @@
     );
   }
 
-  function emit(url, solana, evm) {
-    if (!solana.length && !evm.length) return;
-    window.postMessage(
-      { source: SOURCE, type: "api-sniff", url, solana, evm },
-      "*"
-    );
+  function parseUserDetailFromResponse(url, data) {
+    try {
+      const u = new URL(url);
+      const path = u.pathname || "";
+      if (!/^\/v2\/users\/[0-9a-f-]{36}$/i.test(path)) return null;
+      if (/\/balances/i.test(path)) return null;
+      const m = path.match(/^\/v2\/users\/([0-9a-f-]{36})$/i);
+      if (!m) return null;
+      const ro = data?.responseObject;
+      if (!ro || typeof ro !== "object") return null;
+      return {
+        id: m[1],
+        address: typeof ro.address === "string" ? ro.address : null,
+        evmAddress: typeof ro.evmAddress === "string" ? ro.evmAddress : null,
+      };
+    } catch {
+      return null;
+    }
+  }
+
+  function parseBalancesUserId(url) {
+    try {
+      const u = new URL(url);
+      const m = u.pathname.match(/^\/v2\/users\/([0-9a-f-]{36})\/balances$/i);
+      return m ? m[1] : null;
+    } catch {
+      return null;
+    }
   }
 
   const origFetch = window.fetch;
@@ -79,8 +100,40 @@
       clone
         .json()
         .then((data) => {
-          const { solana, evm } = extractFromJson(data);
-          emit(url, solana, evm);
+          const { solana: sWalk, evm: eWalk } = extractFromJson(data);
+          const balancesUserId = parseBalancesUserId(url);
+          const userDetail = parseUserDetailFromResponse(url, data);
+
+          const solana = [...sWalk];
+          const evm = [...eWalk];
+          if (userDetail?.address && !solana.includes(userDetail.address)) {
+            solana.push(userDetail.address);
+          }
+          if (userDetail?.evmAddress && !evm.includes(userDetail.evmAddress)) {
+            evm.push(userDetail.evmAddress);
+          }
+
+          if (
+            !solana.length &&
+            !evm.length &&
+            !balancesUserId &&
+            !userDetail
+          ) {
+            return;
+          }
+
+          window.postMessage(
+            {
+              source: SOURCE,
+              type: "api-sniff",
+              url,
+              solana,
+              evm,
+              balancesUserId,
+              userDetail,
+            },
+            "*"
+          );
         })
         .catch(() => {});
     } catch (_) {

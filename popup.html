@@ -121,6 +121,10 @@
 
     <p id="pageContext" class="context" hidden></p>
 
+    <div class="section-title">You (logged in)</div>
+    <div id="scanYouSol" class="scan-list"></div>
+    <div id="scanYouEvm" class="scan-list"></div>
+
     <div class="section-title">This profile</div>
     <div id="scanProfileSol" class="scan-list"></div>
     <div id="scanProfileEvm" class="scan-list"></div>
@@ -130,11 +134,14 @@
     <div id="scanEvm" class="scan-list" aria-label="EVM addresses"></div>
 
     <div class="row">
-      <button type="button" class="secondary" id="useProfileSol">Use profile Solana</button>
-      <button type="button" class="secondary" id="useFirstSol">Use first Solana</button>
+      <button type="button" class="secondary" id="useYourSol">Your Solana</button>
+      <button type="button" class="secondary" id="useProfileSol">Profile Solana</button>
     </div>
     <div class="row">
-      <button type="button" class="secondary" id="useFirstEvm">Use first EVM</button>
+      <button type="button" class="secondary" id="useFirstSol">First Solana (page)</button>
+      <button type="button" class="secondary" id="useFirstEvm">First EVM (page)</button>
+    </div>
+    <div class="row">
       <button type="button" class="secondary" id="rescan">Refresh</button>
     </div>
 
