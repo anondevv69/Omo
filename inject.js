@@ -57,6 +57,26 @@
     );
   }
 
+  function isFomoBackendUrl(url) {
+    if (!url || typeof url !== "string") return false;
+    return (
+      url.includes("prod-api.fomo.family") ||
+      url.includes("api.fomo.family") ||
+      (url.includes("solana-provider") && url.includes("fomo.family"))
+    );
+  }
+
+  /** FOMO uses several JSON shapes; token / chart pages may omit `success: true`. */
+  function inferLoggedInFromJson(data, url) {
+    if (!data || typeof data !== "object") return false;
+    if (data.success === false) return false;
+    if (data.success === true) return true;
+    if (data.responseObject != null) return true;
+    if (data.statusCode === 200 && data.message) return true;
+    if (url.includes("/v2/") && Object.keys(data).length > 0) return true;
+    return false;
+  }
+
   function parseUserDetailFromResponse(url, data) {
     try {
       const u = new URL(url);
@@ -95,9 +115,9 @@
       const url = typeof req === "string" ? req : req?.url || "";
       if (!shouldSniffUrl(url)) return res;
       const clone = res.clone();
-      const isProdApi = url.includes("prod-api.fomo.family");
+      const isFomoApi = isFomoBackendUrl(url);
 
-      if (isProdApi && !clone.ok && (clone.status === 401 || clone.status === 403)) {
+      if (isFomoApi && !clone.ok && (clone.status === 401 || clone.status === 403)) {
         window.postMessage(
           { source: SOURCE, type: "fomo-auth", ok: false },
           "*"
@@ -110,7 +130,7 @@
       clone
         .json()
         .then((data) => {
-          if (isProdApi && clone.ok && data && data.success === true) {
+          if (isFomoApi && clone.ok && inferLoggedInFromJson(data, url)) {
             window.postMessage(
               { source: SOURCE, type: "fomo-auth", ok: true },
               "*"

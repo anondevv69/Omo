@@ -137,6 +137,15 @@ window.addEventListener("message", (event) => {
   }
   if (!d || d.source !== MSG_SOURCE || d.type !== "api-sniff") return;
 
+  const hasWalletPayload =
+    (d.solana && d.solana.length > 0) ||
+    (d.evm && d.evm.length > 0) ||
+    !!d.balancesUserId ||
+    !!d.userDetail;
+  if (hasWalletPayload) {
+    void chrome.storage.session.set({ fomoLoggedIn: true, fomoAuthAt: Date.now() });
+  }
+
   if (d.balancesUserId) {
     onBalancesSniff(d.balancesUserId);
   }
