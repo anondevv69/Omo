@@ -6,13 +6,11 @@
 
 Omo reads wallet addresses from **[fomo.family](https://fomo.family)** while you browse and can prepare **Pump.fun** token deploys through a relay server.
 
-> **Publishing this repo:** Put **everything in this folder** at the **root** of your GitHub repo (so `manifest.json` sits next to this `README.md`). This folder is the entire extension — no API server code is included here.
-
 ---
 
 ## Install in Google Chrome
 
-1. Download or clone this repository (extension files only).
+1. Download or clone this repository.
 2. Open Chrome and go to **`chrome://extensions`**.
 3. Turn on **Developer mode** (top right).
 4. Click **Load unpacked**.
