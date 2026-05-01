@@ -194,7 +194,12 @@ prepareBtn.addEventListener("click", async () => {
   }
 
   prepareBtn.disabled = true;
-  showStatus("Deploying (relay signing & broadcasting)…");
+  showStatus(
+    "Deploying (relay mint + sign + RPC). Vanity grind or slow RPC can take 1–4 min — please wait…"
+  );
+
+  const controller = new AbortController();
+  const abortTimer = setTimeout(() => controller.abort(), 240_000);
 
   try {
     const payload = {
@@ -208,6 +213,7 @@ prepareBtn.addEventListener("click", async () => {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(payload),
+      signal: controller.signal,
     });
     const data = await res.json().catch(() => ({}));
     if (!res.ok) {
@@ -221,9 +227,15 @@ prepareBtn.addEventListener("click", async () => {
     const mint = data.mintAddress || "";
     const fomoLink = data.fomoFamilyUrl ||
       (mint ? `https://fomo.family/tokens/solana/${mint}` : "");
+    const timedOut = data.confirmationTimedOut === true;
+    const headline = timedOut
+      ? "Submitted — RPC confirmation timed out (tx may still confirm). Check explorer links."
+      : data.confirmed
+        ? "Deployed successfully."
+        : "Submitted — confirm status below.";
     showStatus(
       [
-        data.confirmed ? "Deployed successfully." : "Submitted — confirm status below.",
+        headline,
         "",
         fomoLink ? `Open on FOMO: ${fomoLink}` : "",
         mint ? `Mint (ends fomo): ${mint}` : "",
@@ -233,6 +245,8 @@ prepareBtn.addEventListener("click", async () => {
             fomoFamilyUrl: data.fomoFamilyUrl ?? fomoLink,
             mintAddress: data.mintAddress,
             confirmed: data.confirmed,
+            confirmationTimedOut: data.confirmationTimedOut,
+            warning: data.warning,
             signature: data.signature,
             note: data.note,
             pumpFunUrl: mint ? `https://pump.fun/coin/${mint}` : undefined,
@@ -248,8 +262,15 @@ prepareBtn.addEventListener("click", async () => {
   } catch (e) {
     headerError = true;
     renderHeaderBadge(loggedInBadge);
-    showStatus(e instanceof Error ? e.message : String(e), true);
+    const msg =
+      e instanceof Error && e.name === "AbortError"
+        ? "Relay took longer than 4 minutes (grind + RPC). Retry or set SOLANA_RPC_URL to a paid endpoint on Railway."
+        : e instanceof Error
+          ? e.message
+          : String(e);
+    showStatus(msg, true);
   } finally {
+    clearTimeout(abortTimer);
     prepareBtn.disabled = false;
   }
 });
