@@ -244,8 +244,32 @@
     return { solana, evm };
   }
 
+  /** Leaderboard often returns 304 with no body — Felper never sees wallets. Force full JSON. */
+  function sniffArgsWithLeaderboardNoStore(args) {
+    const req = args[0];
+    const init = args[1];
+    const urlStr = typeof req === "string" ? req : req?.url || "";
+    if (!shouldSniffUrl(urlStr)) return args;
+    try {
+      const pu = new URL(urlStr, location.href);
+      if (!/\/users\/[0-9a-f-]{36}\/leaderboard$/i.test(pu.pathname)) return args;
+      const nextInit = {
+        ...(typeof init === "object" && init !== null ? init : {}),
+        cache: "no-store",
+      };
+      if (typeof req === "string") return [req, nextInit];
+      if (typeof Request !== "undefined" && req instanceof Request) {
+        return [new Request(req, nextInit)];
+      }
+    } catch {
+      /* ignore */
+    }
+    return args;
+  }
+
   const origFetch = window.fetch;
   window.fetch = async function (...args) {
+    args = sniffArgsWithLeaderboardNoStore(args);
     const res = await origFetch.apply(this, args);
     try {
       const req = args[0];

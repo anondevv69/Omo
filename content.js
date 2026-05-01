@@ -643,6 +643,24 @@ async function publish() {
 
   let lastYouSolForStorage = primaryWallet(youListSol);
   let lastYouEvmForStorage = primaryWallet(youListEvm);
+  /**
+   * Popup "You" reads lastYouSolana — only filled from youListSol above. Handle often comes from
+   * storage merge while wallets stay empty when /leaderboard returned 304 or user-detail raced.
+   * On non-profile pages, fall back to API-sniffed wallets (then full merged scan).
+   */
+  if (
+    !lastYouSolForStorage[0] &&
+    !lastYouEvmForStorage[0] &&
+    !slug &&
+    loggedInFomoHandle
+  ) {
+    lastYouSolForStorage = primaryWallet(apiListSol);
+    lastYouEvmForStorage = primaryWallet(apiListEvm);
+    if (!lastYouSolForStorage[0] && !lastYouEvmForStorage[0]) {
+      lastYouSolForStorage = primaryWallet(solana);
+      lastYouEvmForStorage = primaryWallet(evm);
+    }
+  }
   if (
     !lastYouSolForStorage[0] &&
     !lastYouEvmForStorage[0] &&
