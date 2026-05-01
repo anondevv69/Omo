@@ -480,6 +480,14 @@
                   deployMetricsOwnerHandle = h.trim();
                 }
               }
+              if (
+                !deployMetricsOwnerHandle &&
+                userDetail &&
+                typeof userDetail.profileHandle === "string" &&
+                userDetail.profileHandle.trim()
+              ) {
+                deployMetricsOwnerHandle = userDetail.profileHandle.trim();
+              }
             }
           } catch (_) {
             /* ignore */

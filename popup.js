@@ -434,6 +434,7 @@ prepareBtn.addEventListener("click", async () => {
       }
       if (data.code === "DEPLOY_NOT_ELIGIBLE") {
         const g = data.deployGates || {};
+        const mr = data.metricsReceived;
         const lines = [
           "You can't deploy yet — meet at least one of these:",
           "",
@@ -449,6 +450,18 @@ prepareBtn.addEventListener("click", async () => {
         }
         if (lines.length <= 2) {
           lines.push("(Relay did not return gate details.)");
+        }
+        if (
+          mr &&
+          typeof mr === "object" &&
+          typeof g.minAvgHoldSeconds === "number" &&
+          g.minAvgHoldSeconds > 0 &&
+          typeof mr.avgHoldSeconds !== "number"
+        ) {
+          lines.push(
+            "",
+            "Omo didn’t send your average hold time to the relay yet. Open fomo.family (your profile or home), wait for stats to load, then tap Refresh in Omo and try again."
+          );
         }
         showStatus(lines.join("\n"), true);
         return;

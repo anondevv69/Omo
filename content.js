@@ -74,7 +74,15 @@ function normalizeHandleForDeployMetrics(h) {
  */
 async function maybePersistDeployMetrics(d) {
   if (!d.deployMetrics || typeof d.deployMetrics !== "object") return;
-  const owner = normalizeHandleForDeployMetrics(d.deployMetricsOwnerHandle);
+  let ownerRaw = d.deployMetricsOwnerHandle;
+  if (
+    (!ownerRaw || !String(ownerRaw).trim()) &&
+    d.userDetail &&
+    typeof d.userDetail.profileHandle === "string"
+  ) {
+    ownerRaw = d.userDetail.profileHandle;
+  }
+  const owner = normalizeHandleForDeployMetrics(ownerRaw);
   const you = normalizeHandleForDeployMetrics(loggedInFomoHandle);
   if (!owner || !you || owner !== you) return;
   await chrome.storage.local.set({
