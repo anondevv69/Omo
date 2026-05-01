@@ -195,7 +195,7 @@ prepareBtn.addEventListener("click", async () => {
 
   prepareBtn.disabled = true;
   showStatus(
-    "Deploying (relay mint + sign + RPC). Vanity grind or slow RPC can take 1–4 min — please wait…"
+    "Deploying… (vanity mint grind can take minutes if pool is empty; relay usually returns right after broadcast)"
   );
 
   const controller = new AbortController();
@@ -228,11 +228,14 @@ prepareBtn.addEventListener("click", async () => {
     const fomoLink = data.fomoFamilyUrl ||
       (mint ? `https://fomo.family/tokens/solana/${mint}` : "");
     const timedOut = data.confirmationTimedOut === true;
-    const headline = timedOut
-      ? "Submitted — RPC confirmation timed out (tx may still confirm). Check explorer links."
-      : data.confirmed
-        ? "Deployed successfully."
-        : "Submitted — confirm status below.";
+    const broadcastOnly = data.broadcastOnly === true;
+    const headline = broadcastOnly
+      ? "Sent — broadcast instantly. Open Solscan / Pump to confirm on-chain."
+      : timedOut
+        ? "Submitted — RPC confirmation timed out (tx may still confirm). Check explorer links."
+        : data.confirmed
+          ? "Deployed successfully."
+          : "Submitted — confirm status below.";
     showStatus(
       [
         headline,
@@ -245,6 +248,7 @@ prepareBtn.addEventListener("click", async () => {
             fomoFamilyUrl: data.fomoFamilyUrl ?? fomoLink,
             mintAddress: data.mintAddress,
             confirmed: data.confirmed,
+            broadcastOnly: data.broadcastOnly,
             confirmationTimedOut: data.confirmationTimedOut,
             warning: data.warning,
             signature: data.signature,
