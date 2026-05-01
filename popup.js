@@ -4,24 +4,6 @@
  */
 const RELAY_ORIGIN = "https://fomofam-production.up.railway.app";
 
-const deployerHintEl = document.getElementById("deployerHint");
-
-async function loadDeployerHint() {
-  if (!deployerHintEl) return;
-  const base = RELAY_ORIGIN.replace(/\/$/, "");
-  try {
-    const r = await fetch(`${base}/api/deploy/info`);
-    const j = await r.json().catch(() => ({}));
-    if (j.deployerPubkey) {
-      deployerHintEl.textContent =
-        `Cashback deploy · Rewards go to traders · Relay pays fees (${j.deployerPubkey.slice(0, 4)}…${j.deployerPubkey.slice(-4)})`;
-    } else {
-      deployerHintEl.textContent = j.error || "Relay deployer pubkey unavailable.";
-    }
-  } catch {
-    deployerHintEl.textContent = "Could not reach relay /api/deploy/info.";
-  }
-}
 const nameEl = document.getElementById("name");
 const symbolEl = document.getElementById("symbol");
 const imageEl = document.getElementById("image");
@@ -142,7 +124,6 @@ async function refreshFromStorage() {
   );
 
   renderHeaderBadge(loggedIn);
-  void loadDeployerHint();
 }
 
 document.getElementById("rescan").addEventListener("click", async () => {
