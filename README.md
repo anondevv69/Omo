@@ -61,26 +61,30 @@ Deploy goes through the **relay** configured in this build. The relay pays deplo
 
 ## Deployment restrictions (what you might see)
 
-The relay operator configures limits. Typical behavior:
+The relay applies limits below. Values mirror production relay env (operator tunable).
 
 ### Account identity
 
 - Deploy **requires** knowing **your FOMO @handle**. If Omo can’t resolve it, fix login / refresh on fomo.family until **You (logged in)** shows your handle.
 
-### Eligibility gates
+### Eligibility gates (meet **any one** — OR)
 
-The relay may require you to meet **at least one** of (examples):
+You qualify if **any** of these metrics from your FOMO profile meets the threshold:
 
-- **Followers** — minimum follower count  
-- **Trades** — minimum swap/trade count  
-- **Avg hold time** — minimum average hold duration  
+| Gate | Meaning | Current minimum |
+|------|---------|-----------------|
+| **Followers** | Minimum follower count | **1,000** (`FELPER_DEPLOY_MIN_FOLLOWERS`) |
+| **Trades** | Minimum swap/trade count | **100** (`FELPER_DEPLOY_MIN_SWAPS`) |
+| **Avg hold time** | Minimum average hold duration | **172,800 seconds (48 hours)** (`FELPER_DEPLOY_MIN_AVG_HOLD_SECONDS`) |
 
-If deploy fails with an eligibility message, your stats may still be loading — use the site, then **Refresh** in Omo. Thresholds are set on the server, not in the extension.
+If deploy fails with an eligibility message, your stats may still be loading — use the site, then **Refresh** in Omo.
 
 ### Cooldowns
 
-- **Per-account cooldown** — only one deploy per user within a window (often described as a “daily limit”).
-- **Same ticker** — deploying the **same symbol** again may be blocked for a period; you may get a link to the **original** token instead.
+| Limit | Current value |
+|-------|----------------|
+| **Per account** — wait between deploys for the same user | **24 hours** (`FELPER_DEPLOY_USER_COOLDOWN_HOURS` = `24`) |
+| **Same ticker** — wait before deploying that symbol again | **24 hours** (`FELPER_DEPLOY_SYMBOL_COOLDOWN_HOURS` = `24`); you may get a link to the **original** token instead |
 
 ---
 
