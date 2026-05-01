@@ -185,6 +185,20 @@ function tryFlushPendingUserDetail() {
   applyUserDetailToBuckets(ud);
 }
 
+/**
+ * Only set deploy @handle when this user-detail is plausibly the logged-in viewer — not the last
+ * random /profile/{other} API response (that caused wrong @FlippingProfits tags).
+ */
+function shouldTrustUserDetailForLoggedInHandle(ud) {
+  if (!ud || !ud.id) return false;
+  const alreadyYou =
+    (ud.address && youSeenSol.has(ud.address)) ||
+    (ud.evmAddress && youSeenEvm.has(ud.evmAddress));
+  const viewerUuid = inferViewerBalancesUserId();
+  const uuidMatchesViewer = Boolean(viewerUuid && ud.id === viewerUuid);
+  return alreadyYou || uuidMatchesViewer;
+}
+
 function applyUserDetailToBuckets(ud) {
   const slug = currentProfileSlug();
   const id = ud.id;
@@ -219,6 +233,9 @@ function applyUserDetailToBuckets(ud) {
         ud.address,
         ud.evmAddress
       );
+      if (typeof ph === "string" && ph.trim() && shouldTrustUserDetailForLoggedInHandle(ud)) {
+        loggedInFomoHandle = ph.trim();
+      }
       pendingUserDetail = null;
       return;
     }
@@ -240,15 +257,17 @@ function applyUserDetailToBuckets(ud) {
       pendingUserDetail = ud;
       return;
     }
+    const trustYou = shouldTrustUserDetailForLoggedInHandle(ud);
     addCanon(youListSol, youListEvm, youSeenSol, youSeenEvm, ud.address, ud.evmAddress);
-    if (typeof ud.profileHandle === "string" && ud.profileHandle.trim()) {
+    if (typeof ud.profileHandle === "string" && ud.profileHandle.trim() && trustYou) {
       loggedInFomoHandle = ud.profileHandle.trim();
     }
     return;
   }
 
+  const trustGlobal = shouldTrustUserDetailForLoggedInHandle(ud);
   addCanon(youListSol, youListEvm, youSeenSol, youSeenEvm, ud.address, ud.evmAddress);
-  if (typeof ud.profileHandle === "string" && ud.profileHandle.trim()) {
+  if (typeof ud.profileHandle === "string" && ud.profileHandle.trim() && trustGlobal) {
     loggedInFomoHandle = ud.profileHandle.trim();
   }
 }
@@ -463,6 +482,15 @@ function profileDisplayEvm() {
 
 async function publish() {
   const slug = currentProfileSlug();
+  /** Viewing someone else's /profile/slug — don't keep their @handle for deploy metadata. */
+  if (
+    slug &&
+    loggedInFomoHandle &&
+    String(slug).toLowerCase() !== String(loggedInFomoHandle).toLowerCase()
+  ) {
+    loggedInFomoHandle = "";
+  }
+
   if (slug !== lastProfileSlugPublished) {
     profSeenSol.clear();
     profSeenEvm.clear();
