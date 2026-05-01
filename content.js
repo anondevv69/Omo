@@ -42,8 +42,11 @@ const balancesByUserId = new Map();
 let lastProfileSlugPublished = null;
 /** Last /balances path UUID seen (legacy fallback only; may be viewer after header refresh) */
 let profileBuddyId = null;
-/** @type {{ id: string; address: string | null; evmAddress: string | null } | null} */
+/** @type {{ id: string; address: string | null; evmAddress: string | null; profileHandle?: string | null } | null} */
 let pendingUserDetail = null;
+
+/** FOMO @handle for the logged-in viewer (from user-detail API), for deploy metadata. */
+let loggedInFomoHandle = "";
 
 function requestMainWorldSniffer() {
   chrome.runtime.sendMessage({ type: "INSTALL_MAIN_SNIFFER" }, () => {
@@ -238,10 +241,16 @@ function applyUserDetailToBuckets(ud) {
       return;
     }
     addCanon(youListSol, youListEvm, youSeenSol, youSeenEvm, ud.address, ud.evmAddress);
+    if (typeof ud.profileHandle === "string" && ud.profileHandle.trim()) {
+      loggedInFomoHandle = ud.profileHandle.trim();
+    }
     return;
   }
 
   addCanon(youListSol, youListEvm, youSeenSol, youSeenEvm, ud.address, ud.evmAddress);
+  if (typeof ud.profileHandle === "string" && ud.profileHandle.trim()) {
+    loggedInFomoHandle = ud.profileHandle.trim();
+  }
 }
 
 function pushYouFromDetail(ud) {
@@ -483,6 +492,7 @@ async function publish() {
     lastProfileEvm: primaryWallet(profileDisplayEvm()),
     lastYouSolana: primaryWallet(youListSol),
     lastYouEvm: primaryWallet(youListEvm),
+    lastYouFomoHandle: loggedInFomoHandle || "",
   });
 }
 

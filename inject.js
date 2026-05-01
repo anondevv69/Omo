@@ -108,10 +108,17 @@
       if (!m) return null;
       const ro = data?.responseObject;
       if (!ro || typeof ro !== "object") return null;
+      const profileHandle =
+        (typeof ro.profileHandle === "string" && ro.profileHandle.trim()) ||
+        (typeof ro.handle === "string" && ro.handle.trim()) ||
+        (typeof ro.username === "string" && ro.username.trim()) ||
+        (typeof ro.userName === "string" && ro.userName.trim()) ||
+        null;
       return {
         id: m[1],
         address: typeof ro.address === "string" ? ro.address : null,
         evmAddress: typeof ro.evmAddress === "string" ? ro.evmAddress : null,
+        profileHandle,
       };
     } catch {
       return null;

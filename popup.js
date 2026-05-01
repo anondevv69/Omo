@@ -190,8 +190,12 @@ prepareBtn.addEventListener("click", async () => {
   }
 
   const base = RELAY_ORIGIN.replace(/\/$/, "");
-  const sessionKeys = await chrome.storage.local.get(["lastYouSolana"]);
+  const sessionKeys = await chrome.storage.local.get([
+    "lastYouSolana",
+    "lastYouFomoHandle",
+  ]);
   const youSol = sessionKeys.lastYouSolana ?? [];
+  const fomoHandle = (sessionKeys.lastYouFomoHandle || "").trim();
   const creatorAddress = (youSol[0] || creatorEl.value || "").trim();
   const name = nameEl.value.trim();
   const symbol = symbolEl.value.trim();
@@ -220,6 +224,7 @@ prepareBtn.addEventListener("click", async () => {
       symbol,
       ...(description ? { description } : {}),
       ...(image ? { image } : {}),
+      ...(fomoHandle ? { fomoUsername: fomoHandle } : {}),
     };
     const res = await fetch(`${base}/api/deploy/prepare`, {
       method: "POST",
@@ -236,17 +241,19 @@ prepareBtn.addEventListener("click", async () => {
     const summary = {
       mintAddress: data.mintAddress,
       feePayer: data.feePayer,
+      creatorFeeRecipient: data.creatorFeeRecipient,
       metadataUri: data.metadataUri,
       transactionBase64: data.transactionBase64,
       next: data.hint,
+      deployNote: data.deployNote,
     };
     headerError = false;
     renderHeaderBadge(true);
     showStatus(
       [
-        "Prepare succeeded — this is normal (unsigned tx).",
+        "Prepare succeeded — Felper’s relay pays deployment fees; creator trading fees go to creatorFeeRecipient (your logged-in Solana address).",
         "",
-        "Next: sign with YOUR creator wallet (Phantom etc.), then POST the signed tx:",
+        "Solana still requires one signature from that creator wallet, then POST the signed tx:",
         `  POST ${base}/api/deploy/submit`,
         '  body: { "transactionBase64": "<same field after signing>" }',
         "",
