@@ -466,15 +466,22 @@ prepareBtn.addEventListener("click", async () => {
         return;
       }
       if (data.code === "DEPLOY_USER_COOLDOWN") {
+        const wait =
+          typeof data.retryAfterSec === "number"
+            ? formatRetryHuman(data.retryAfterSec)
+            : "a while";
         showStatus(
-          [data.error || "Per-account deploy cooldown active.", "", JSON.stringify(data, null, 2)].join(
-            "\n"
-          ),
+          `You've reached your deploy cooldown (daily limit). Try again in ~${wait}.`,
           true
         );
         return;
       }
-      showStatus(JSON.stringify(data, null, 2) || res.statusText, true);
+      const errMsg =
+        (typeof data.error === "string" && data.error.trim()) ||
+        (typeof data.message === "string" && data.message.trim()) ||
+        res.statusText ||
+        `Request failed (${res.status})`;
+      showStatus(errMsg, true);
       return;
     }
     headerError = false;
