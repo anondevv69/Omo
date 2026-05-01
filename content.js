@@ -199,9 +199,10 @@ function tryFlushPendingUserDetail() {
 /**
  * Only set deploy @handle when this user-detail is plausibly the logged-in viewer — not the last
  * random /profile/{other} API response (that caused wrong @FlippingProfits tags).
- * Pass `afterAddCanon=true` when the wallet has already been added to youSeenSol/youSeenEvm.
+ * Must be evaluated **before** addCanon(..., youListSol, ...) for the same `ud`, otherwise
+ * `alreadyYou` is trivially true for any address we just inserted.
  */
-function shouldTrustUserDetailForLoggedInHandle(ud, afterAddCanon = false) {
+function shouldTrustUserDetailForLoggedInHandle(ud) {
   if (!ud || !ud.id) return false;
   if (ud.isSelf === true) return true;
   const alreadyYou =
@@ -287,32 +288,23 @@ function applyUserDetailToBuckets(ud) {
       pendingUserDetail = ud;
       return;
     }
-    addCanon(youListSol, youListEvm, youSeenSol, youSeenEvm, ud.address, ud.evmAddress);
     const trustYou = shouldTrustUserDetailForLoggedInHandle(ud);
-    if (typeof ud.profileHandle === "string" && ud.profileHandle.trim() && trustYou) {
-      loggedInFomoHandle = ud.profileHandle.trim();
+    if (trustYou) {
+      addCanon(youListSol, youListEvm, youSeenSol, youSeenEvm, ud.address, ud.evmAddress);
+      if (typeof ud.profileHandle === "string" && ud.profileHandle.trim()) {
+        loggedInFomoHandle = ud.profileHandle.trim();
+      }
     }
     return;
   }
 
-  /**
-   * On non-profile pages (home, token pages, etc.) FOMO only fetches YOUR own user data
-   * for the nav bar / header. Token-creator data is fetched separately and doesn't usually
-   * include a profileHandle in the same user-detail response shape.
-   *
-   * Trust order (non-profile):
-   * 1. isSelf endpoint (always trusted)
-   * 2. UUID or wallet already correlated to viewer from prior balances/sniff
-   * 3. First user-detail with address + profileHandle when no handle is known yet
-   *    (safe on non-profile pages since there is no "other user's profile" context)
-   */
-  addCanon(youListSol, youListEvm, youSeenSol, youSeenEvm, ud.address, ud.evmAddress);
-  const hasHandle = typeof ud.profileHandle === "string" && ud.profileHandle.trim();
-  const trustGlobal =
-    shouldTrustUserDetailForLoggedInHandle(ud) ||
-    (hasHandle && !loggedInFomoHandle && Boolean(ud.address || ud.evmAddress));
-  if (hasHandle && trustGlobal) {
-    loggedInFomoHandle = ud.profileHandle.trim();
+  /** Non-profile: only trust viewer correlation or `isSelf` from inject (never "first detail"). */
+  const trustGlobal = shouldTrustUserDetailForLoggedInHandle(ud);
+  if (trustGlobal) {
+    addCanon(youListSol, youListEvm, youSeenSol, youSeenEvm, ud.address, ud.evmAddress);
+    if (typeof ud.profileHandle === "string" && ud.profileHandle.trim()) {
+      loggedInFomoHandle = ud.profileHandle.trim();
+    }
   }
 }
 
@@ -602,17 +594,24 @@ async function publish() {
   const dom = extractAddresses();
   const { solana, evm } = pageScanSolanaEvm(slug, dom);
 
-  /** When @handle isn’t inferred yet, still tag deploys if viewer’s wallet matches this profile row. */
+  /**
+   * When @handle isn’t inferred yet, still tag deploys if viewer’s wallet matches this profile row.
+   * Use URL `slug` only when: no handle yet (own-profile wallet match) **or** slug matches the
+   * handle we already trust — so visiting someone else’s `/profile/them` never sets `them`.
+   */
   let lastDeployFomoHandle = loggedInFomoHandle || "";
   if (!lastDeployFomoHandle && slug) {
     const youSol = primaryWallet(youListSol)[0];
     const profSol = primaryWallet(profileDisplaySol())[0];
     const youEvm = primaryWallet(youListEvm)[0];
     const profEvm = primaryWallet(profileDisplayEvm())[0];
-    if (
+    const walletMatch =
       (youSol && profSol && youSol === profSol) ||
-      (youEvm && profEvm && youEvm === profEvm)
-    ) {
+      (youEvm && profEvm && youEvm === profEvm);
+    const slugMatchesLoggedIn =
+      Boolean(loggedInFomoHandle) &&
+      String(slug).toLowerCase() === String(loggedInFomoHandle).toLowerCase();
+    if (walletMatch && (!loggedInFomoHandle || slugMatchesLoggedIn)) {
       lastDeployFomoHandle = slug;
     }
   }

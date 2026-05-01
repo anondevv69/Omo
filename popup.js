@@ -154,12 +154,18 @@ async function resolveFomoHandleForDeploy() {
     const profSol = String(storage.lastProfileSolana?.[0] || "").trim();
     const youEvm = String(storage.lastYouEvm?.[0] || "").trim();
     const profEvm = String(storage.lastProfileEvm?.[0] || "").trim();
-    if (
+    const walletMatch =
       (youSol && profSol && youSol === profSol) ||
-      (youEvm && profEvm && youEvm === profEvm)
-    ) {
-      return { handle: slug, storage };
-    }
+      (youEvm && profEvm && youEvm === profEvm);
+    if (!walletMatch) return { handle: "", storage };
+
+    const storedH =
+      String(beforeScan.lastYouFomoHandle || "").trim() ||
+      String(storage.lastYouFomoHandle || "").trim();
+    const slugOk =
+      !storedH ||
+      String(slug).toLowerCase() === String(storedH).toLowerCase();
+    if (slugOk) return { handle: slug, storage };
   } catch {
     /* ignore */
   }
@@ -184,6 +190,7 @@ async function refreshFromStorage() {
     "lastYouSolana",
     "lastYouEvm",
     "fomoLoggedIn",
+    "lastYouFomoHandle",
   ]);
 
   const loggedIn = session.fomoLoggedIn === true;
@@ -193,13 +200,21 @@ async function refreshFromStorage() {
   prepareBtn.disabled = false;
 
   const slug = session.lastProfileSlug;
+  const acct = String(session.lastYouFomoHandle || "").trim();
+  profileViewingLineEl.hidden = false;
   if (slug) {
-    profileViewingLineEl.hidden = false;
-    profileViewingLineEl.innerHTML = `Viewing profile <strong>@${slug}</strong>`;
+    let html = `Viewing profile <strong>@${slug}</strong>`;
+    if (acct && String(slug).toLowerCase() !== acct.toLowerCase()) {
+      html += ` <span class="muted">· Your account <strong>@${acct}</strong></span>`;
+    } else if (acct && String(slug).toLowerCase() === acct.toLowerCase()) {
+      html += ` <span class="muted">(your profile)</span>`;
+    }
+    profileViewingLineEl.innerHTML = html;
+  } else if (acct) {
+    profileViewingLineEl.innerHTML = `Logged in as <strong>@${acct}</strong> <span class="muted">(not on /profile/…)</span>`;
   } else {
-    profileViewingLineEl.hidden = false;
     profileViewingLineEl.innerHTML =
-      'Viewing profile <span class="muted">— open a profile on fomo.family</span>';
+      'Viewing profile <span class="muted">— open fomo.family until Felper picks up your @handle</span>';
   }
 
   renderList(
