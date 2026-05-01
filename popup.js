@@ -464,12 +464,12 @@ prepareBtn.addEventListener("click", async () => {
     const payload = {
       name,
       symbol,
-      ...(description ? { description } : {}),
-      ...(image ? { image } : {}),
-      ...(website ? { website } : {}),
-      ...(twitter ? { twitter } : {}),
-      ...(telegram ? { telegram } : {}),
-      ...(fomoHandle ? { fomoUsername: fomoHandle } : {}),
+      description,
+      image,
+      website,
+      twitter,
+      telegram,
+      fomoUsername: fomoHandle,
       ...(Object.keys(deployMetrics).length ? { deployMetrics } : {}),
     };
     const res = await fetch(`${base}/api/deploy/prepare`, {
