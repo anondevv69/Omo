@@ -432,6 +432,13 @@ window.addEventListener("message", (event) => {
     void chrome.storage.local.set({ fomoLoggedIn: true, fomoAuthAt: Date.now() });
   }
 
+  if (d.deployMetrics && typeof d.deployMetrics === "object") {
+    void chrome.storage.local.set({
+      lastYouDeployMetrics: d.deployMetrics,
+      lastYouDeployMetricsAt: Date.now(),
+    });
+  }
+
   if (
     d.balancesUserId &&
     (d.balancesStructuredSolana?.length || d.balancesStructuredEvm?.length)
@@ -725,7 +732,31 @@ chrome.runtime.onMessage.addListener((msg) => {
     }));
 });
 
+/**
+ * fomo.family is a SPA: pathname can change without reload. MutationObserver alone may not run
+ * when navigation is cheap — hook history so profile wallets / slug update without tapping Refresh.
+ */
+function hookSpaNavigationForPublish() {
+  const notify = () => {
+    void publish();
+  };
+  const origPush = history.pushState;
+  const origReplace = history.replaceState;
+  history.pushState = function pushStateWrapped(...args) {
+    const r = origPush.apply(this, args);
+    notify();
+    return r;
+  };
+  history.replaceState = function replaceStateWrapped(...args) {
+    const r = origReplace.apply(this, args);
+    notify();
+    return r;
+  };
+  window.addEventListener("popstate", notify);
+}
+
 function startObservers() {
+  hookSpaNavigationForPublish();
   void publish();
   const mo = new MutationObserver(() => {
     void publish();

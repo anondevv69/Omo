@@ -146,6 +146,59 @@
         flex: 1;
         margin-top: 8px;
       }
+      /** pump.fun-style two-column fields */
+      .deploy-field-row {
+        display: flex;
+        gap: 8px;
+        align-items: stretch;
+      }
+      .deploy-field-row .field-col {
+        flex: 1;
+        min-width: 0;
+      }
+      .deploy-field-row .field-col label {
+        margin-top: 0;
+      }
+      details.fold-social {
+        margin-top: 10px;
+        border: 1px solid var(--border);
+        border-radius: 8px;
+        background: #14161c;
+        overflow: hidden;
+      }
+      details.fold-social summary {
+        list-style: none;
+        cursor: pointer;
+        font-size: 12px;
+        font-weight: 500;
+        color: var(--fg);
+        padding: 10px 12px;
+        display: flex;
+        align-items: center;
+        gap: 8px;
+      }
+      details.fold-social summary::-webkit-details-marker {
+        display: none;
+      }
+      details.fold-social summary::after {
+        content: "";
+        margin-left: auto;
+        width: 0;
+        height: 0;
+        border-left: 5px solid transparent;
+        border-right: 5px solid transparent;
+        border-top: 6px solid var(--muted);
+        transition: transform 0.15s ease;
+      }
+      details.fold-social[open] summary::after {
+        transform: rotate(180deg);
+      }
+      .social-inner {
+        padding: 0 12px 12px;
+      }
+      .social-inner .deploy-field-row {
+        margin-bottom: 4px;
+      }
       .status {
         margin-top: 10px;
         padding: 8px;
@@ -311,33 +364,59 @@
     <details class="fold-you">
       <summary>You (logged in)</summary>
       <div class="fold-you-inner">
+        <p id="youAccountLine" class="profile-viewing-line" hidden></p>
         <div id="scanYouSol" class="scan-list"></div>
         <div id="scanYouEvm" class="scan-list"></div>
       </div>
     </details>
 
-    <div class="section-title">This profile</div>
-    <p id="profileViewingLine" class="profile-viewing-line" hidden></p>
-    <div id="scanProfileSol" class="scan-list"></div>
-    <div id="scanProfileEvm" class="scan-list"></div>
+    <div id="foreignProfileSection" hidden>
+      <div class="section-title">This profile</div>
+      <p id="profileViewingLine" class="profile-viewing-line"></p>
+      <div id="scanProfileSol" class="scan-list"></div>
+      <div id="scanProfileEvm" class="scan-list"></div>
+    </div>
 
     <details class="fold-you fold-deploy">
       <summary>Deploy token</summary>
       <div class="fold-you-inner">
         <p class="hint">Felper uses cashback — fees always go back to traders.</p>
 
-        <div class="section-title">Token</div>
-        <label for="name">Name</label>
-        <input id="name" type="text" maxlength="32" placeholder="My coin" />
-
-        <label for="symbol">Symbol</label>
-        <input id="symbol" type="text" maxlength="10" placeholder="COIN" />
-
-        <label for="image">Image URL <span class="optional">(optional)</span></label>
-        <input id="image" type="url" placeholder="https://…png or ipfs://…" spellcheck="false" />
+        <div class="section-title">Create coin</div>
+        <div class="deploy-field-row">
+          <div class="field-col">
+            <label for="name">Coin name</label>
+            <input id="name" type="text" maxlength="32" placeholder="Name your coin" />
+          </div>
+          <div class="field-col">
+            <label for="symbol">Ticker</label>
+            <input id="symbol" type="text" maxlength="10" placeholder="e.g. DOGE" />
+          </div>
+        </div>
 
         <label for="description">Description <span class="optional">(optional)</span></label>
-        <textarea id="description" rows="3" maxlength="500" placeholder="Short description for metadata"></textarea>
+        <textarea id="description" rows="3" maxlength="500" placeholder="Write a short description"></textarea>
+
+        <label for="image">Image URL <span class="optional">(optional)</span></label>
+        <input id="image" type="url" placeholder="https://… or ipfs://… (token artwork)" spellcheck="false" />
+
+        <details class="fold-social" open>
+          <summary>Add social links <span class="optional">(optional)</span></summary>
+          <div class="social-inner">
+            <div class="deploy-field-row">
+              <div class="field-col">
+                <label for="website">Website</label>
+                <input id="website" type="url" placeholder="Add URL" spellcheck="false" />
+              </div>
+              <div class="field-col">
+                <label for="twitter">X</label>
+                <input id="twitter" type="text" maxlength="120" placeholder="Add URL" spellcheck="false" />
+              </div>
+            </div>
+            <label for="telegram">Telegram</label>
+            <input id="telegram" type="url" placeholder="Add URL" spellcheck="false" />
+          </div>
+        </details>
 
         <button type="button" id="prepare">Deploy</button>
       </div>

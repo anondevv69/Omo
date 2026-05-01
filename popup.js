@@ -8,9 +8,14 @@ const nameEl = document.getElementById("name");
 const symbolEl = document.getElementById("symbol");
 const imageEl = document.getElementById("image");
 const descriptionEl = document.getElementById("description");
+const websiteEl = document.getElementById("website");
+const twitterEl = document.getElementById("twitter");
+const telegramEl = document.getElementById("telegram");
 const statusEl = document.getElementById("status");
 const prepareBtn = document.getElementById("prepare");
 const profileViewingLineEl = document.getElementById("profileViewingLine");
+const youAccountLineEl = document.getElementById("youAccountLine");
+const foreignProfileSectionEl = document.getElementById("foreignProfileSection");
 const loginGateEl = document.getElementById("login-gate");
 const appRootEl = document.getElementById("app-root");
 const headerStatusEl = document.getElementById("headerStatus");
@@ -201,20 +206,33 @@ async function refreshFromStorage() {
 
   const slug = session.lastProfileSlug;
   const acct = String(session.lastYouFomoHandle || "").trim();
-  profileViewingLineEl.hidden = false;
-  if (slug) {
-    let html = `Viewing profile <strong>@${slug}</strong>`;
-    if (acct && String(slug).toLowerCase() !== acct.toLowerCase()) {
-      html += ` <span class="muted">· Your account <strong>@${acct}</strong></span>`;
-    } else if (acct && String(slug).toLowerCase() === acct.toLowerCase()) {
-      html += ` <span class="muted">(your profile)</span>`;
+  const slugNorm = slug ? String(slug).toLowerCase() : "";
+  const acctNorm = acct ? String(acct).toLowerCase() : "";
+
+  /** Another user’s profile tab — not your own slug and not “no slug”. */
+  const viewingOtherProfile =
+    Boolean(slug) && (!acctNorm || slugNorm !== acctNorm);
+
+  if (loggedIn) {
+    if (acct) {
+      youAccountLineEl.innerHTML = `Your account <strong>@${acct}</strong>`;
+      youAccountLineEl.hidden = false;
+    } else {
+      youAccountLineEl.innerHTML =
+        '<span class="muted">Felper hasn’t read your @handle yet — keep using fomo.family until data loads.</span>';
+      youAccountLineEl.hidden = false;
     }
-    profileViewingLineEl.innerHTML = html;
-  } else if (acct) {
-    profileViewingLineEl.innerHTML = `Logged in as <strong>@${acct}</strong> <span class="muted">(not on /profile/…)</span>`;
   } else {
-    profileViewingLineEl.innerHTML =
-      'Viewing profile <span class="muted">— open fomo.family until Felper picks up your @handle</span>';
+    youAccountLineEl.innerHTML = "";
+    youAccountLineEl.hidden = true;
+  }
+
+  if (viewingOtherProfile) {
+    foreignProfileSectionEl.hidden = false;
+    profileViewingLineEl.innerHTML = `Viewing profile <strong>@${slug}</strong>`;
+  } else {
+    foreignProfileSectionEl.hidden = true;
+    profileViewingLineEl.innerHTML = "";
   }
 
   renderList(
@@ -231,12 +249,12 @@ async function refreshFromStorage() {
   renderList(
     document.getElementById("scanProfileSol"),
     "Solana",
-    session.lastProfileSolana ?? []
+    viewingOtherProfile ? session.lastProfileSolana ?? [] : []
   );
   renderList(
     document.getElementById("scanProfileEvm"),
     "EVM",
-    session.lastProfileEvm ?? []
+    viewingOtherProfile ? session.lastProfileEvm ?? [] : []
   );
 
   renderHeaderBadge(loggedIn);
@@ -294,6 +312,9 @@ prepareBtn.addEventListener("click", async () => {
   const symbol = symbolEl.value.trim();
   const image = imageEl.value.trim();
   const description = descriptionEl.value.trim();
+  const website = websiteEl.value.trim();
+  const twitter = twitterEl.value.trim();
+  const telegram = telegramEl.value.trim();
 
   if (!name || !symbol) {
     const pre = await chrome.storage.local.get(["fomoLoggedIn"]);
@@ -332,12 +353,29 @@ prepareBtn.addEventListener("click", async () => {
   const abortTimer = setTimeout(() => controller.abort(), 240_000);
 
   try {
+    const dm = await chrome.storage.local.get(["lastYouDeployMetrics"]);
+    const raw = dm.lastYouDeployMetrics;
+    const deployMetrics =
+      raw && typeof raw === "object"
+        ? {
+            ...(typeof raw.followers === "number" ? { followers: raw.followers } : {}),
+            ...(typeof raw.following === "number" ? { following: raw.following } : {}),
+            ...(typeof raw.swaps === "number" ? { swaps: raw.swaps } : {}),
+            ...(typeof raw.avgHoldSeconds === "number"
+              ? { avgHoldSeconds: raw.avgHoldSeconds }
+              : {}),
+          }
+        : {};
     const payload = {
       name,
       symbol,
       ...(description ? { description } : {}),
       ...(image ? { image } : {}),
+      ...(website ? { website } : {}),
+      ...(twitter ? { twitter } : {}),
+      ...(telegram ? { telegram } : {}),
       ...(fomoHandle ? { fomoUsername: fomoHandle } : {}),
+      ...(Object.keys(deployMetrics).length ? { deployMetrics } : {}),
     };
     const res = await fetch(`${base}/api/deploy/prepare`, {
       method: "POST",
@@ -356,6 +394,54 @@ prepareBtn.addEventListener("click", async () => {
             "",
             JSON.stringify(data, null, 2),
           ].join("\n"),
+          true
+        );
+        return;
+      }
+      if (data.code === "DEPLOY_NOT_ELIGIBLE") {
+        showStatus(
+          [
+            "Relay rejected deploy: you need to meet at least one eligibility threshold (followers, swaps, or avg hold time). Use fomo.family until profile/API data loads, tap Refresh in Felper, then try again.",
+            "",
+            JSON.stringify(data, null, 2),
+          ].join("\n"),
+          true
+        );
+        return;
+      }
+      if (data.code === "DEPLOY_SYMBOL_DUPLICATE") {
+        headerError = false;
+        renderHeaderBadge(loggedInBadge);
+        const orig = data.original || {};
+        const link =
+          orig.fomoFamilyUrl ||
+          (orig.mintAddress
+            ? `https://fomo.family/tokens/solana/${orig.mintAddress}`
+            : "");
+        const lines = [
+          data.error ||
+            "This ticker was already deployed on Felper within the cooldown window — here is the original token.",
+          "",
+          orig.tokenName ? `Original name: ${orig.tokenName}` : "",
+          orig.fomoUsername != null && orig.fomoUsername !== ""
+            ? `Deployed by: @${orig.fomoUsername}`
+            : "",
+          orig.mintAddress ? `Mint: ${orig.mintAddress}` : "",
+          typeof data.retryAfterSec === "number"
+            ? `Same ticker allowed again in ~${data.retryAfterSec}s`
+            : "",
+          "",
+          JSON.stringify(data, null, 2),
+        ].filter(Boolean);
+        showStatus(lines.join("\n"), false);
+        if (link) showDeployResultLink(link);
+        return;
+      }
+      if (data.code === "DEPLOY_USER_COOLDOWN") {
+        showStatus(
+          [data.error || "Per-account deploy cooldown active.", "", JSON.stringify(data, null, 2)].join(
+            "\n"
+          ),
           true
         );
         return;

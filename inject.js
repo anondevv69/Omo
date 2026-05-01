@@ -53,6 +53,140 @@
     return { solana: sol, evm };
   }
 
+  /**
+   * Deploy-gate stats from FOMO prod-api user rows (logged-in / users/me / user by id).
+   * Canonical shape includes: followers, following, swapCount, numTrades, averageHoldTimeSeconds.
+   */
+  function extractDeployMetrics(data) {
+    const ro = data?.responseObject;
+    if (ro && typeof ro === "object") {
+      const canonicalKeys = [
+        "followers",
+        "following",
+        "swapCount",
+        "numTrades",
+        "averageHoldTimeSeconds",
+      ];
+      if (canonicalKeys.some((k) => Object.prototype.hasOwnProperty.call(ro, k))) {
+        /** @type {{ followers?: number; following?: number; swaps?: number; avgHoldSeconds?: number }} */
+        const out = {};
+
+        if (typeof ro.followers === "number" && Number.isFinite(ro.followers)) {
+          out.followers = ro.followers;
+        }
+        if (typeof ro.following === "number" && Number.isFinite(ro.following)) {
+          out.following = ro.following;
+        }
+
+        const sc = ro.swapCount;
+        const nt = ro.numTrades;
+        const scOk = typeof sc === "number" && Number.isFinite(sc);
+        const ntOk = typeof nt === "number" && Number.isFinite(nt);
+        if (scOk && ntOk) {
+          out.swaps = Math.max(sc, nt);
+        } else if (scOk) {
+          out.swaps = sc;
+        } else if (ntOk) {
+          out.swaps = nt;
+        }
+
+        const ah = ro.averageHoldTimeSeconds;
+        if (typeof ah === "number" && Number.isFinite(ah)) {
+          out.avgHoldSeconds = ah;
+        }
+
+        if (Object.keys(out).length) return out;
+      }
+    }
+
+    /* Fallback: older / alternate JSON shapes */
+    const roots = [];
+    if (ro && typeof ro === "object") roots.push(ro);
+    if (data && typeof data === "object" && data !== ro) roots.push(data);
+
+    const followerKeys = new Set([
+      "followerCount",
+      "followersCount",
+      "followers",
+      "followCount",
+      "numFollowers",
+    ]);
+    const swapKeys = new Set([
+      "swapCount",
+      "numTrades",
+      "swaps",
+      "totalSwaps",
+      "tradeCount",
+      "trades",
+      "totalTrades",
+    ]);
+    const holdKeys = new Set([
+      "averageHoldTimeSeconds",
+      "avgHoldSeconds",
+      "avgHoldingTimeSeconds",
+      "averageHoldingSeconds",
+      "avgHoldTimeSeconds",
+    ]);
+
+    let followers = null;
+    let swaps = null;
+    let avgHoldSeconds = null;
+
+    function considerKey(key, val) {
+      if (typeof val !== "number" || !Number.isFinite(val)) return;
+      if (followerKeys.has(key)) followers = val;
+      if (swapKeys.has(key)) swaps = val;
+      if (holdKeys.has(key)) avgHoldSeconds = val;
+      const kl = key.toLowerCase();
+      if (
+        followers == null &&
+        kl.includes("follower") &&
+        (kl.includes("count") || kl === "followers")
+      ) {
+        followers = val;
+      }
+      if (
+        swaps == null &&
+        (kl.includes("swap") || kl.includes("trade")) &&
+        (kl.includes("count") || kl === "total")
+      ) {
+        swaps = val;
+      }
+      if (
+        avgHoldSeconds == null &&
+        kl.includes("hold") &&
+        (kl.includes("avg") || kl.includes("average") || kl.includes("mean"))
+      ) {
+        avgHoldSeconds = val;
+      }
+    }
+
+    function walkObj(obj, depth) {
+      if (depth > 10 || !obj || typeof obj !== "object") return;
+      if (Array.isArray(obj)) {
+        for (const item of obj) walkObj(item, depth + 1);
+        return;
+      }
+      for (const [k, v] of Object.entries(obj)) {
+        considerKey(k, v);
+        if (typeof v === "object" && v !== null) walkObj(v, depth + 1);
+      }
+    }
+
+    for (const r of roots) walkObj(r, 0);
+
+    if (avgHoldSeconds != null && avgHoldSeconds > 1e7) {
+      avgHoldSeconds = avgHoldSeconds / 1000;
+    }
+
+    if (followers == null && swaps == null && avgHoldSeconds == null) return null;
+    const out = {};
+    if (followers != null) out.followers = followers;
+    if (swaps != null) out.swaps = swaps;
+    if (avgHoldSeconds != null) out.avgHoldSeconds = avgHoldSeconds;
+    return out;
+  }
+
   function shouldSniffUrl(url) {
     if (!url || typeof url !== "string") return false;
     return (
@@ -305,6 +439,18 @@
             : { solana: [], evm: [] };
           const userDetail = parseUserDetailFromResponse(url, data);
 
+          let deployMetrics = null;
+          try {
+            const pu = new URL(url, location.href);
+            const pathSelf =
+              userDetail?.isSelf === true || isSelfUrl(pu.pathname || "");
+            if (pathSelf) {
+              deployMetrics = extractDeployMetrics(data);
+            }
+          } catch (_) {
+            /* ignore */
+          }
+
           const solana = [...sWalk];
           const evm = [...eWalk];
           if (userDetail?.address && !solana.includes(userDetail.address)) {
@@ -334,6 +480,7 @@
               balancesStructuredSolana: balancesStructured.solana,
               balancesStructuredEvm: balancesStructured.evm,
               userDetail,
+              deployMetrics,
             },
             "*"
           );
