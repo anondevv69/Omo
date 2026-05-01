@@ -61,7 +61,7 @@ Deploy goes through the **relay** configured in this build. The relay pays deplo
 
 ## Deployment restrictions (what you might see)
 
-The relay applies limits below. Values mirror production relay env (operator tunable).
+The relay applies the limits below (production defaults; the operator may change them).
 
 ### Account identity
 
@@ -71,20 +71,20 @@ The relay applies limits below. Values mirror production relay env (operator tun
 
 You qualify if **any** of these metrics from your FOMO profile meets the threshold:
 
-| Gate | Meaning | Current minimum |
-|------|---------|-----------------|
-| **Followers** | Minimum follower count | **1,000** (`FELPER_DEPLOY_MIN_FOLLOWERS`) |
-| **Trades** | Minimum swap/trade count | **100** (`FELPER_DEPLOY_MIN_SWAPS`) |
-| **Avg hold time** | Minimum average hold duration | **172,800 seconds (48 hours)** (`FELPER_DEPLOY_MIN_AVG_HOLD_SECONDS`) |
+| Gate | Meaning | Minimum |
+|------|---------|---------|
+| **Followers** | Minimum follower count | **1,000** |
+| **Trades** | Minimum swap/trade count | **100** |
+| **Avg hold time** | Minimum average hold duration | **172,800 seconds (48 hours)** |
 
 If deploy fails with an eligibility message, your stats may still be loading — use the site, then **Refresh** in Omo.
 
 ### Cooldowns
 
-| Limit | Current value |
-|-------|----------------|
-| **Per account** — wait between deploys for the same user | **24 hours** (`FELPER_DEPLOY_USER_COOLDOWN_HOURS` = `24`) |
-| **Same ticker** — wait before deploying that symbol again | **24 hours** (`FELPER_DEPLOY_SYMBOL_COOLDOWN_HOURS` = `24`); you may get a link to the **original** token instead |
+| Limit | Value |
+|-------|--------|
+| **Per account** — wait between deploys for the same user | **24 hours** |
+| **Same ticker** — wait before deploying that symbol again | **24 hours**; you may get a link to the **original** token instead |
 
 ---
 
