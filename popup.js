@@ -194,18 +194,24 @@ prepareBtn.addEventListener("click", async () => {
       showStatus(JSON.stringify(data, null, 2) || res.statusText, true);
       return;
     }
+    const summary = {
+      mintAddress: data.mintAddress,
+      feePayer: data.feePayer,
+      metadataUri: data.metadataUri,
+      transactionBase64: data.transactionBase64,
+      next: data.hint,
+    };
     showStatus(
-      JSON.stringify(
-        {
-          mintAddress: data.mintAddress,
-          feePayer: data.feePayer,
-          metadataUri: data.metadataUri,
-          transactionBase64: data.transactionBase64,
-          next: data.hint,
-        },
-        null,
-        2
-      )
+      [
+        "Prepare succeeded — this is normal (unsigned tx).",
+        "",
+        "Next: sign with YOUR creator wallet (Phantom etc.), then POST the signed tx:",
+        `  POST ${base}/api/deploy/submit`,
+        '  body: { "transactionBase64": "<same field after signing>" }',
+        "",
+        "— Response —",
+        JSON.stringify(summary, null, 2),
+      ].join("\n")
     );
   } catch (e) {
     showStatus(e instanceof Error ? e.message : String(e), true);
