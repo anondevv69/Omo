@@ -253,7 +253,7 @@ async function refreshFromStorage() {
       youAccountLineEl.hidden = false;
     } else {
       youAccountLineEl.innerHTML =
-        '<span class="muted">Felper hasn’t read your @handle yet — keep using fomo.family until data loads.</span>';
+        '<span class="muted">Omo hasn’t read your @handle yet — keep using fomo.family until data loads.</span>';
       youAccountLineEl.hidden = false;
     }
   } else {
@@ -380,7 +380,7 @@ prepareBtn.addEventListener("click", async () => {
   const base = RELAY_ORIGIN.replace(/\/$/, "");
 
   showStatus(
-    "Deploying… (instant when fomo mint pool has keys; otherwise you’ll see pool-empty — relay fills in background)"
+    "Deploying… (instant when the mint pool has keys; otherwise you’ll see pool-empty — relay fills in background)"
   );
 
   const controller = new AbortController();
@@ -452,12 +452,12 @@ prepareBtn.addEventListener("click", async () => {
         }
         lines.push(
           "",
-          "Use fomo.family while logged in, then tap Refresh in Felper so we can read your stats."
+          "Use fomo.family while logged in, then tap Refresh in Omo so we can read your stats."
         );
         showStatus(lines.join("\n"), true);
         return;
       }
-      if (data.code === "DEPLOY_SYMBOL_DUPLICATE") {
+      if (data.code === "DEPLOY_SYMBOL_DUPLICATE" || data.code === "DEPLOY_SYMBOL_FOREVER") {
         headerError = false;
         renderHeaderBadge(loggedInBadge);
         const orig = data.original || {};
@@ -467,9 +467,17 @@ prepareBtn.addEventListener("click", async () => {
             ? `https://fomo.family/tokens/solana/${orig.mintAddress}`
             : "");
         const symLabel = symbol ? String(symbol).trim().toUpperCase() : "";
-        const opener = symLabel
-          ? `This ticker (${symLabel}) was already used in the last 24 hours on Felper. Here’s the existing token — open the link below on FOMO.`
-          : `This ticker was already used in the last 24 hours on Felper. Here’s the existing token — open the link below on FOMO.`;
+        const isForever = data.code === "DEPLOY_SYMBOL_FOREVER";
+        let opener;
+        if (isForever) {
+          opener = symLabel
+            ? `Ticker ${symLabel} can only be deployed once through Omo. Here’s the original token on FOMO:`
+            : `This ticker can only be deployed once through Omo. Here’s the original token on FOMO:`;
+        } else {
+          opener = symLabel
+            ? `This ticker (${symLabel}) was already used in the last 24 hours on Omo. Here’s the existing token — open the link below on FOMO.`
+            : `This ticker was already used in the last 24 hours on Omo. Here’s the existing token — open the link below on FOMO:`;
+        }
         const lines = [
           opener,
           "",
@@ -478,7 +486,9 @@ prepareBtn.addEventListener("click", async () => {
             ? `Deployed by: @${orig.fomoUsername}`
             : "",
           orig.mintAddress ? `Mint: ${orig.mintAddress}` : "",
-          typeof data.retryAfterSec === "number"
+          !isForever &&
+          typeof data.retryAfterSec === "number" &&
+          data.retryAfterSec > 0
             ? `You can try this ticker again after the cooldown (~${formatRetryHuman(data.retryAfterSec)}).`
             : "",
         ].filter(Boolean);

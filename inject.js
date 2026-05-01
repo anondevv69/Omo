@@ -378,7 +378,7 @@
     return { solana, evm };
   }
 
-  /** Leaderboard often returns 304 with no body — Felper never sees wallets. Force full JSON. */
+  /** Leaderboard often returns 304 with no body — Omo never sees wallets. Force full JSON. */
   function sniffArgsWithLeaderboardNoStore(args) {
     const req = args[0];
     const init = args[1];

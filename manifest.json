@@ -1,10 +1,10 @@
 {
   "manifest_version": 3,
-  "name": "Felper",
-  "version": "0.7.19",
-  "description": "Reads wallets from fomo.family (DOM + API) and calls your relay API to prepare Pump deployments.",
+  "name": "Omo",
+  "version": "0.8.0",
+  "description": "Omo: wallets from fomo.family and Pump deploys via your relay.",
   "action": {
-    "default_title": "Felper",
+    "default_title": "Omo",
     "default_popup": "popup.html"
   },
   "background": {

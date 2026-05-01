@@ -2,7 +2,7 @@
 <html lang="en">
   <head>
     <meta charset="UTF-8" />
-    <title>Felper</title>
+    <title>Omo</title>
     <style>
       :root {
         color-scheme: dark;
@@ -336,14 +336,23 @@
       details.fold-you .fold-you-inner {
         padding-bottom: 4px;
       }
+      .omo-footer {
+        margin-top: 14px;
+        padding-top: 10px;
+        border-top: 1px solid var(--border);
+        font-size: 10px;
+        color: var(--muted);
+        text-align: center;
+        line-height: 1.4;
+      }
     </style>
   </head>
   <body>
     <header class="popup-header">
-      <h1>Felper</h1>
+      <h1>Omo</h1>
       <div class="header-actions">
         <span id="headerStatus" class="header-status warn" role="status">Sign in</span>
-        <button type="button" class="btn-icon" id="rescan" aria-label="Refresh wallets" title="Refresh">
+        <button type="button" class="btn-icon" id="rescan" aria-label="Refresh wallets for Omo" title="Refresh">
           <!-- Filled refresh: reads clearly at small sizes (stroke arcs were clipping in the popup) -->
           <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
             <path
@@ -380,7 +389,7 @@
     <details class="fold-you fold-deploy">
       <summary>Deploy token</summary>
       <div class="fold-you-inner">
-        <p class="hint">Felper uses cashback — fees always go back to traders.</p>
+        <p class="hint">Omo uses cashback — fees always go back to traders.</p>
 
         <div class="section-title">Create coin</div>
         <div class="deploy-field-row">
@@ -424,6 +433,8 @@
     </div>
 
     <div id="status" class="status" hidden></div>
+
+    <footer class="omo-footer">made by rayblancoeth &lt;3</footer>
 
     <script src="popup.js"></script>
   </body>
