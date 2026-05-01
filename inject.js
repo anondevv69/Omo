@@ -440,12 +440,46 @@
           const userDetail = parseUserDetailFromResponse(url, data);
 
           let deployMetrics = null;
+          /** Handle whose stats these are (for saving only when it matches the logged-in user). */
+          let deployMetricsOwnerHandle = null;
           try {
             const pu = new URL(url, location.href);
+            const pathname = pu.pathname || "";
             const pathSelf =
-              userDetail?.isSelf === true || isSelfUrl(pu.pathname || "");
-            if (pathSelf) {
-              deployMetrics = extractDeployMetrics(data);
+              userDetail?.isSelf === true || isSelfUrl(pathname);
+            const byHandleMatch =
+              pathname.match(/\/v2\/users\/userHandle\/([^/]+)$/i) ||
+              pathname.match(/\/v3\/users\/userHandle\/([^/]+)$/i) ||
+              pathname.match(/\/v2\/users\/handle\/([^/]+)$/i) ||
+              pathname.match(/\/api\/v\d+\/users\/userHandle\/([^/]+)$/i);
+            const bareUuidUser =
+              /\/v\d+\/users\/[0-9a-f-]{36}$/i.test(pathname);
+
+            let extracted = null;
+            if (pathSelf || byHandleMatch || bareUuidUser) {
+              extracted = extractDeployMetrics(data);
+            }
+
+            if (extracted && Object.keys(extracted).length) {
+              deployMetrics = extracted;
+              const ro = data?.responseObject;
+              if (pathSelf && ro && typeof ro === "object") {
+                const h = ro.userHandle || ro.profileHandle;
+                if (typeof h === "string" && h.trim()) {
+                  deployMetricsOwnerHandle = h.trim();
+                }
+              } else if (byHandleMatch) {
+                deployMetricsOwnerHandle = decodeURIComponent(byHandleMatch[1]);
+              } else if (
+                bareUuidUser &&
+                ro &&
+                typeof ro === "object"
+              ) {
+                const h = ro.userHandle || ro.profileHandle;
+                if (typeof h === "string" && h.trim()) {
+                  deployMetricsOwnerHandle = h.trim();
+                }
+              }
             }
           } catch (_) {
             /* ignore */
@@ -464,7 +498,8 @@
             !solana.length &&
             !evm.length &&
             !balancesUserId &&
-            !userDetail
+            !userDetail &&
+            !deployMetrics
           ) {
             return;
           }
@@ -481,6 +516,7 @@
               balancesStructuredEvm: balancesStructured.evm,
               userDetail,
               deployMetrics,
+              deployMetricsOwnerHandle,
             },
             "*"
           );

@@ -62,6 +62,27 @@ async function rehydrateLoggedInFomoHandleIfNeeded() {
   }
 }
 
+function normalizeHandleForDeployMetrics(h) {
+  return String(h || "")
+    .trim()
+    .replace(/^@+/, "")
+    .toLowerCase();
+}
+
+/**
+ * Store deploy-gate stats only for the logged-in user's row, after `loggedInFomoHandle` is applied.
+ */
+async function maybePersistDeployMetrics(d) {
+  if (!d.deployMetrics || typeof d.deployMetrics !== "object") return;
+  const owner = normalizeHandleForDeployMetrics(d.deployMetricsOwnerHandle);
+  const you = normalizeHandleForDeployMetrics(loggedInFomoHandle);
+  if (!owner || !you || owner !== you) return;
+  await chrome.storage.local.set({
+    lastYouDeployMetrics: d.deployMetrics,
+    lastYouDeployMetricsAt: Date.now(),
+  });
+}
+
 function requestMainWorldSniffer() {
   chrome.runtime.sendMessage({ type: "INSTALL_MAIN_SNIFFER" }, () => {
     void chrome.runtime.lastError;
@@ -432,13 +453,6 @@ window.addEventListener("message", (event) => {
     void chrome.storage.local.set({ fomoLoggedIn: true, fomoAuthAt: Date.now() });
   }
 
-  if (d.deployMetrics && typeof d.deployMetrics === "object") {
-    void chrome.storage.local.set({
-      lastYouDeployMetrics: d.deployMetrics,
-      lastYouDeployMetricsAt: Date.now(),
-    });
-  }
-
   if (
     d.balancesUserId &&
     (d.balancesStructuredSolana?.length || d.balancesStructuredEvm?.length)
@@ -497,10 +511,15 @@ window.addEventListener("message", (event) => {
       applyUserDetailToBuckets(d.userDetail);
       tryFlushPendingUserDetail();
       supplementProfileCanonFromSniffIfSlugMatches(slug, d);
+      await maybePersistDeployMetrics(d);
       await publish();
     })();
   } else {
-    void publish();
+    void (async () => {
+      await rehydrateLoggedInFomoHandleIfNeeded();
+      await maybePersistDeployMetrics(d);
+      await publish();
+    })();
   }
 });
 
