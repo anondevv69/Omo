@@ -199,9 +199,11 @@ function tryFlushPendingUserDetail() {
 /**
  * Only set deploy @handle when this user-detail is plausibly the logged-in viewer — not the last
  * random /profile/{other} API response (that caused wrong @FlippingProfits tags).
+ * Pass `afterAddCanon=true` when the wallet has already been added to youSeenSol/youSeenEvm.
  */
-function shouldTrustUserDetailForLoggedInHandle(ud) {
+function shouldTrustUserDetailForLoggedInHandle(ud, afterAddCanon = false) {
   if (!ud || !ud.id) return false;
+  if (ud.isSelf === true) return true;
   const alreadyYou =
     (ud.address && youSeenSol.has(ud.address)) ||
     (ud.evmAddress && youSeenEvm.has(ud.evmAddress));
@@ -285,17 +287,31 @@ function applyUserDetailToBuckets(ud) {
       pendingUserDetail = ud;
       return;
     }
-    const trustYou = shouldTrustUserDetailForLoggedInHandle(ud);
     addCanon(youListSol, youListEvm, youSeenSol, youSeenEvm, ud.address, ud.evmAddress);
+    const trustYou = shouldTrustUserDetailForLoggedInHandle(ud);
     if (typeof ud.profileHandle === "string" && ud.profileHandle.trim() && trustYou) {
       loggedInFomoHandle = ud.profileHandle.trim();
     }
     return;
   }
 
-  const trustGlobal = shouldTrustUserDetailForLoggedInHandle(ud);
+  /**
+   * On non-profile pages (home, token pages, etc.) FOMO only fetches YOUR own user data
+   * for the nav bar / header. Token-creator data is fetched separately and doesn't usually
+   * include a profileHandle in the same user-detail response shape.
+   *
+   * Trust order (non-profile):
+   * 1. isSelf endpoint (always trusted)
+   * 2. UUID or wallet already correlated to viewer from prior balances/sniff
+   * 3. First user-detail with address + profileHandle when no handle is known yet
+   *    (safe on non-profile pages since there is no "other user's profile" context)
+   */
   addCanon(youListSol, youListEvm, youSeenSol, youSeenEvm, ud.address, ud.evmAddress);
-  if (typeof ud.profileHandle === "string" && ud.profileHandle.trim() && trustGlobal) {
+  const hasHandle = typeof ud.profileHandle === "string" && ud.profileHandle.trim();
+  const trustGlobal =
+    shouldTrustUserDetailForLoggedInHandle(ud) ||
+    (hasHandle && !loggedInFomoHandle && Boolean(ud.address || ud.evmAddress));
+  if (hasHandle && trustGlobal) {
     loggedInFomoHandle = ud.profileHandle.trim();
   }
 }

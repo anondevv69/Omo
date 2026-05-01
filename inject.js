@@ -82,11 +82,53 @@
     return false;
   }
 
+  /**
+   * Returns true when the URL is a "me" / "self" endpoint that FOMO calls for the logged-in viewer.
+   * On these endpoints the response ALWAYS belongs to you — never to another user.
+   */
+  function isSelfUrl(path) {
+    return (
+      /\/users\/me(?:\/|$)/i.test(path) ||
+      /\/v\d+\/me(?:\/|$)/i.test(path) ||
+      /\/auth\/me(?:\/|$)/i.test(path) ||
+      /\/profile\/me(?:\/|$)/i.test(path) ||
+      /\/auth\/status(?:\/|$)/i.test(path) ||
+      /\/user\/me(?:\/|$)/i.test(path)
+    );
+  }
+
+  function extractRoUserDetail(ro, idHint) {
+    if (!ro || typeof ro !== "object") return null;
+    const id =
+      (typeof ro.id === "string" ? ro.id : null) || idHint || null;
+    if (!id) return null;
+    const profileHandle =
+      (typeof ro.profileHandle === "string" && ro.profileHandle.trim()) ||
+      (typeof ro.handle === "string" && ro.handle.trim()) ||
+      (typeof ro.username === "string" && ro.username.trim()) ||
+      (typeof ro.userName === "string" && ro.userName.trim()) ||
+      null;
+    return {
+      id,
+      address: typeof ro.address === "string" ? ro.address : null,
+      evmAddress: typeof ro.evmAddress === "string" ? ro.evmAddress : null,
+      profileHandle,
+    };
+  }
+
   function parseUserDetailFromResponse(url, data) {
     try {
       const u = new URL(url);
       const path = u.pathname || "";
       if (/\/balances/i.test(path)) return null;
+
+      /** "me" / self endpoints — ALWAYS the logged-in viewer; mark with isSelf. */
+      if (isSelfUrl(path)) {
+        const ro = data?.responseObject ?? data;
+        const ud = extractRoUserDetail(ro, null);
+        if (ud) return { ...ud, isSelf: true };
+        return null;
+      }
 
       /** GET …/userHandle/{handle} or …/handle/{handle} — canonical profile wallets on /profile/:handle */
       const byHandle = path.match(/\/v2\/users\/userHandle\/([^/]+)$/i) ||
@@ -103,6 +145,7 @@
           address: typeof ro.address === "string" ? ro.address : null,
           evmAddress: typeof ro.evmAddress === "string" ? ro.evmAddress : null,
           profileHandle: decodeURIComponent(byHandle[1]),
+          isSelf: false,
         };
       }
 
@@ -114,18 +157,9 @@
       if (!m || !m[1]) return null;
       const ro = data?.responseObject;
       if (!ro || typeof ro !== "object") return null;
-      const profileHandle =
-        (typeof ro.profileHandle === "string" && ro.profileHandle.trim()) ||
-        (typeof ro.handle === "string" && ro.handle.trim()) ||
-        (typeof ro.username === "string" && ro.username.trim()) ||
-        (typeof ro.userName === "string" && ro.userName.trim()) ||
-        null;
-      return {
-        id: m[1],
-        address: typeof ro.address === "string" ? ro.address : null,
-        evmAddress: typeof ro.evmAddress === "string" ? ro.evmAddress : null,
-        profileHandle,
-      };
+      const ud = extractRoUserDetail(ro, m[1]);
+      if (!ud) return null;
+      return { ...ud, isSelf: false };
     } catch {
       return null;
     }
