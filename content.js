@@ -10,6 +10,10 @@ const RE_EVM = /\b0x[a-fA-F0-9]{40}\b/g;
 
 const MSG_SOURCE = "fomo-deploy-sniffer";
 
+/** OMO native mint — thesis deploy comments are only honored on this token page. */
+const THESIS_WATCH_MINT =
+  "9xpmicYqcLM8aRNeTHpBHQZ6qbqx31X397nR9LKqaomo";
+
 /** All API walk addresses */
 const apiSeenSol = new Set();
 const apiSeenEvm = new Set();
@@ -433,6 +437,35 @@ function recordBalancesStructured(d) {
   tryFlushPendingUserDetail();
 }
 
+function handleThesisComments(d) {
+  try {
+    const path = location.pathname || "";
+    if (!path.includes(`/tokens/solana/${THESIS_WATCH_MINT}`)) return;
+
+    const comments = Array.isArray(d.comments) ? d.comments : [];
+    for (const c of comments) {
+      const handle = c?._omoResolvedHandle;
+      const id = c?.id;
+      const name = c?._omoThesisName;
+      const symbol = c?._omoThesisSymbol;
+      if (!handle || id == null || !name || !symbol) continue;
+
+      chrome.runtime.sendMessage({
+        type: "THESIS_DEPLOY_REQUEST",
+        payload: {
+          commentId: String(id),
+          name: String(name).trim(),
+          symbol: String(symbol).trim(),
+          fomoUsername: String(handle).trim(),
+          deployMetrics: c._omoDeployMetrics || undefined,
+        },
+      });
+    }
+  } catch {
+    /* ignore */
+  }
+}
+
 window.addEventListener("message", (event) => {
   const d = event.data;
   if (d?.source === MSG_SOURCE && d.type === "fomo-auth") {
@@ -448,6 +481,10 @@ window.addEventListener("message", (event) => {
           }),
     });
     if (!ok) loggedInFomoHandle = "";
+    return;
+  }
+  if (d?.source === MSG_SOURCE && d.type === "thesis-comments") {
+    handleThesisComments(d);
     return;
   }
   if (!d || d.source !== MSG_SOURCE || d.type !== "api-sniff") return;

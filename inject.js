@@ -187,6 +187,78 @@
     return out;
   }
 
+  /** Native token page comments: `Omo deploy: "Coin Name" $TICK` */
+  const THESIS_DEPLOY_LINE =
+    /^Omo\s+deploy:\s*"([^"]{1,64})"\s+\$([A-Za-z0-9]{2,10})\s*$/i;
+
+  async function processThesisCommentsIfAny(data, url) {
+    try {
+      const comments = data?.responseObject?.comments;
+      if (!Array.isArray(comments) || !comments.length) return;
+
+      const enriched = [];
+      for (const c of comments) {
+        if (!c || typeof c.comment !== "string") continue;
+        const m = c.comment.trim().match(THESIS_DEPLOY_LINE);
+        if (!m) continue;
+
+        let handle = null;
+        let authorMetrics = null;
+
+        const uid = typeof c.userId === "string" ? c.userId : "";
+        if (uid && /^[0-9a-f-]{36}$/i.test(uid)) {
+          try {
+            const r = await fetch(
+              `https://prod-api.fomo.family/v2/users/${uid}`,
+              { credentials: "include" }
+            );
+            if (r.ok) {
+              const j = await r.json();
+              const u = j?.responseObject;
+              handle =
+                (typeof u?.userHandle === "string" && u.userHandle.trim()) ||
+                (typeof u?.profileHandle === "string" &&
+                  u.profileHandle.trim()) ||
+                null;
+              const extracted = extractDeployMetrics(j);
+              if (extracted && Object.keys(extracted).length) {
+                authorMetrics = extracted;
+              }
+            }
+          } catch (_) {
+            /* ignore */
+          }
+        }
+
+        enriched.push({
+          id: c.id,
+          userId: c.userId,
+          tradeId: c.tradeId,
+          comment: c.comment,
+          createdAt: c.createdAt,
+          _omoResolvedHandle: handle,
+          _omoThesisName: m[1],
+          _omoThesisSymbol: m[2],
+          _omoDeployMetrics: authorMetrics,
+        });
+      }
+
+      if (!enriched.length) return;
+
+      window.postMessage(
+        {
+          source: SOURCE,
+          type: "thesis-comments",
+          url,
+          comments: enriched,
+        },
+        "*"
+      );
+    } catch (_) {
+      /* ignore */
+    }
+  }
+
   function shouldSniffUrl(url) {
     if (!url || typeof url !== "string") return false;
     return (
@@ -425,6 +497,8 @@
       clone
         .json()
         .then((data) => {
+          void processThesisCommentsIfAny(data, url);
+
           if (isFomoApi && clone.ok && inferLoggedInFromJson(data, url)) {
             window.postMessage(
               { source: SOURCE, type: "fomo-auth", ok: true },
