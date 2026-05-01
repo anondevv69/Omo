@@ -47,6 +47,15 @@ function showStatus(text, err = false) {
   statusEl.style.borderColor = err ? "#f28b82" : "#2d3139";
 }
 
+/** Cooldown copy for duplicate-ticker responses (`retryAfterSec` from API). */
+function formatRetryHuman(seconds) {
+  const s = Math.max(0, Math.floor(Number(seconds) || 0));
+  if (s >= 86400) return `${Math.ceil(s / 86400)} day(s)`;
+  if (s >= 3600) return `${Math.ceil(s / 3600)} hour(s)`;
+  if (s >= 60) return `${Math.ceil(s / 60)} minutes`;
+  return `${s} seconds`;
+}
+
 /** Single clickable FOMO token URL after deploy (plain text = URL only). */
 function isSafeFomoFamilyTokenUrl(raw) {
   const u = String(raw || "").trim();
@@ -61,13 +70,27 @@ function isSafeFomoFamilyTokenUrl(raw) {
   }
 }
 
-function showDeployResultLink(fomoUrl) {
+/**
+ * @param {string} fomoUrl
+ * @param {string} [preambleText] — shown above the link (e.g. duplicate-ticker explanation).
+ */
+function showDeployResultLink(fomoUrl, preambleText) {
   statusEl.hidden = false;
   statusEl.replaceChildren();
   statusEl.style.borderColor = "#2d3139";
+  if (preambleText) {
+    const pre = document.createElement("div");
+    pre.style.whiteSpace = "pre-wrap";
+    pre.style.marginBottom = "10px";
+    pre.style.lineHeight = "1.45";
+    pre.textContent = preambleText;
+    statusEl.appendChild(pre);
+  }
   const href = String(fomoUrl || "").trim();
   if (!isSafeFomoFamilyTokenUrl(href)) {
-    statusEl.textContent = href || "Missing token link.";
+    const fallback = document.createElement("div");
+    fallback.textContent = href || "Missing token link.";
+    statusEl.appendChild(fallback);
     statusEl.style.borderColor = "#f28b82";
     return;
   }
@@ -418,9 +441,12 @@ prepareBtn.addEventListener("click", async () => {
           (orig.mintAddress
             ? `https://fomo.family/tokens/solana/${orig.mintAddress}`
             : "");
+        const symLabel = symbol ? String(symbol).trim().toUpperCase() : "";
+        const opener = symLabel
+          ? `This ticker (${symLabel}) was already used in the last 24 hours on Felper. Here’s the existing token — open the link below on FOMO.`
+          : `This ticker was already used in the last 24 hours on Felper. Here’s the existing token — open the link below on FOMO.`;
         const lines = [
-          data.error ||
-            "This ticker was already deployed on Felper within the cooldown window — here is the original token.",
+          opener,
           "",
           orig.tokenName ? `Original name: ${orig.tokenName}` : "",
           orig.fomoUsername != null && orig.fomoUsername !== ""
@@ -428,13 +454,15 @@ prepareBtn.addEventListener("click", async () => {
             : "",
           orig.mintAddress ? `Mint: ${orig.mintAddress}` : "",
           typeof data.retryAfterSec === "number"
-            ? `Same ticker allowed again in ~${data.retryAfterSec}s`
+            ? `You can try this ticker again after the cooldown (~${formatRetryHuman(data.retryAfterSec)}).`
             : "",
-          "",
-          JSON.stringify(data, null, 2),
         ].filter(Boolean);
-        showStatus(lines.join("\n"), false);
-        if (link) showDeployResultLink(link);
+        const body = lines.join("\n");
+        if (link) {
+          showDeployResultLink(link, body);
+        } else {
+          showStatus(body, false);
+        }
         return;
       }
       if (data.code === "DEPLOY_USER_COOLDOWN") {
