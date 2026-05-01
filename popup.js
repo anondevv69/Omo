@@ -195,7 +195,7 @@ prepareBtn.addEventListener("click", async () => {
 
   prepareBtn.disabled = true;
   showStatus(
-    "Deploying… (vanity mint grind can take minutes if pool is empty; relay usually returns right after broadcast)"
+    "Deploying… (instant when fomo mint pool has keys; otherwise you’ll see pool-empty — relay fills in background)"
   );
 
   const controller = new AbortController();
@@ -219,6 +219,17 @@ prepareBtn.addEventListener("click", async () => {
     if (!res.ok) {
       headerError = true;
       renderHeaderBadge(loggedInBadge);
+      if (data.code === "VANITY_POOL_EMPTY") {
+        showStatus(
+          [
+            "No fomo mint ready — pool is empty. The relay grinds keys in the background; wait and check GET /api/deploy/info (mintPool.size), import keys, or enable slow on-request grind on the server.",
+            "",
+            JSON.stringify(data, null, 2),
+          ].join("\n"),
+          true
+        );
+        return;
+      }
       showStatus(JSON.stringify(data, null, 2) || res.statusText, true);
       return;
     }
