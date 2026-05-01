@@ -13,7 +13,8 @@ async function loadDeployerHint() {
     const r = await fetch(`${base}/api/deploy/info`);
     const j = await r.json().catch(() => ({}));
     if (j.deployerPubkey) {
-      deployerHintEl.textContent = `On-chain creator & Pump fees: ${j.deployerPubkey}`;
+      deployerHintEl.textContent =
+        `Cashback deploy · Rewards go to traders · Relay pays fees (${j.deployerPubkey.slice(0, 4)}…${j.deployerPubkey.slice(-4)})`;
     } else {
       deployerHintEl.textContent = j.error || "Relay deployer pubkey unavailable.";
     }
@@ -236,25 +237,32 @@ prepareBtn.addEventListener("click", async () => {
     }
     headerError = false;
     renderHeaderBadge(loggedInBadge);
+    const mint = data.mintAddress || "";
+    const fomoLink = data.fomoFamilyUrl ||
+      (mint ? `https://fomo.family/tokens/solana/${mint}` : "");
     showStatus(
       [
-        data.confirmed ? "Deployed on-chain." : "Submitted — confirm status below.",
+        data.confirmed ? "Deployed successfully." : "Submitted — confirm status below.",
+        "",
+        fomoLink ? `Open on FOMO: ${fomoLink}` : "",
+        mint ? `Mint (ends fomo): ${mint}` : "",
         "",
         JSON.stringify(
           {
-            signature: data.signature,
-            confirmed: data.confirmed,
+            fomoFamilyUrl: data.fomoFamilyUrl ?? fomoLink,
             mintAddress: data.mintAddress,
-            deployerPubkey: data.deployerPubkey,
-            metadataUri: data.metadataUri,
-            explorerUrl: data.explorerUrl,
-            mintExplorerUrl: data.mintExplorerUrl,
+            confirmed: data.confirmed,
+            signature: data.signature,
             note: data.note,
+            pumpFunUrl: mint ? `https://pump.fun/coin/${mint}` : undefined,
+            explorerUrl: data.explorerUrl,
           },
           null,
           2
         ),
-      ].join("\n")
+      ]
+        .filter((line) => line !== "")
+        .join("\n")
     );
   } catch (e) {
     headerError = true;
