@@ -199,6 +199,18 @@ function shouldTrustUserDetailForLoggedInHandle(ud) {
   return alreadyYou || uuidMatchesViewer;
 }
 
+/** On /profile/You, profile row wallets appear in the viewer's structured balances pack (you viewing your own page). */
+function viewerOwnsProfilePageUserDetail(ud) {
+  const vid = inferViewerBalancesUserId();
+  if (!vid || !ud) return false;
+  const pack = balancesByUserId.get(vid);
+  if (!pack) return false;
+  return (
+    (ud.address && pack.sol.includes(ud.address)) ||
+    (ud.evmAddress && pack.evm.includes(ud.evmAddress))
+  );
+}
+
 function applyUserDetailToBuckets(ud) {
   const slug = currentProfileSlug();
   const id = ud.id;
@@ -233,7 +245,11 @@ function applyUserDetailToBuckets(ud) {
         ud.address,
         ud.evmAddress
       );
-      if (typeof ph === "string" && ph.trim() && shouldTrustUserDetailForLoggedInHandle(ud)) {
+      if (
+        typeof ph === "string" &&
+        ph.trim() &&
+        (shouldTrustUserDetailForLoggedInHandle(ud) || viewerOwnsProfilePageUserDetail(ud))
+      ) {
         loggedInFomoHandle = ph.trim();
       }
       pendingUserDetail = null;
