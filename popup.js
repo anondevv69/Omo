@@ -450,10 +450,6 @@ prepareBtn.addEventListener("click", async () => {
         if (lines.length <= 2) {
           lines.push("(Relay did not return gate details.)");
         }
-        lines.push(
-          "",
-          "Use fomo.family while logged in, then tap Refresh in Omo so we can read your stats."
-        );
         showStatus(lines.join("\n"), true);
         return;
       }
