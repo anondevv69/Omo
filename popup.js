@@ -116,6 +116,65 @@ function showDeployResultLink(fomoUrl, preambleText) {
   statusEl.appendChild(a);
 }
 
+/**
+ * Duplicate / forever ticker: show Pump.fun + fomo.family when both exist.
+ * @param {string} preambleText
+ * @param {{ explorerUrl?: string; fomoFamilyUrl?: string; mintAddress?: string }} orig
+ */
+function showDeployReferenceLinks(preambleText, orig) {
+  statusEl.hidden = false;
+  statusEl.replaceChildren();
+  statusEl.style.borderColor = "#2d3139";
+  if (preambleText) {
+    const pre = document.createElement("div");
+    pre.style.whiteSpace = "pre-wrap";
+    pre.style.marginBottom = "10px";
+    pre.style.lineHeight = "1.45";
+    pre.textContent = preambleText;
+    statusEl.appendChild(pre);
+  }
+  const pump = String(orig.explorerUrl || "").trim();
+  const fomoTok = String(orig.fomoFamilyUrl || "").trim();
+  const mint = String(orig.mintAddress || "").trim();
+  const fomoFallback =
+    !fomoTok && mint ? `https://fomo.family/tokens/solana/${mint}` : "";
+  /** @type {{ label: string; href: string }[]} */
+  const rows = [];
+  if (pump && isSafeDeployReferenceUrl(pump)) {
+    rows.push({ label: "Pump.fun", href: pump });
+  }
+  const fomoHref = fomoTok || fomoFallback;
+  if (fomoHref && isSafeDeployReferenceUrl(fomoHref)) {
+    rows.push({ label: "fomo.family", href: fomoHref });
+  }
+  if (rows.length === 0) {
+    const fb = document.createElement("div");
+    fb.textContent = "No safe token link in response.";
+    statusEl.appendChild(fb);
+    statusEl.style.borderColor = "#f28b82";
+    return;
+  }
+  const wrap = document.createElement("div");
+  wrap.style.display = "flex";
+  wrap.style.flexDirection = "column";
+  wrap.style.gap = "10px";
+  for (const { label, href } of rows) {
+    const row = document.createElement("div");
+    const lab = document.createElement("span");
+    lab.textContent = `${label}: `;
+    row.appendChild(lab);
+    const a = document.createElement("a");
+    a.className = "deploy-result-link";
+    a.href = href;
+    a.target = "_blank";
+    a.rel = "noopener noreferrer";
+    a.textContent = href;
+    row.appendChild(a);
+    wrap.appendChild(row);
+  }
+  statusEl.appendChild(wrap);
+}
+
 async function getActiveTab() {
   const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
   return tab;
@@ -472,19 +531,20 @@ prepareBtn.addEventListener("click", async () => {
         headerError = false;
         renderHeaderBadge(loggedInBadge);
         const orig = data.original || {};
-        const link =
-          (typeof orig.explorerUrl === "string" && orig.explorerUrl.trim()) ||
-          orig.fomoFamilyUrl ||
-          (orig.mintAddress
-            ? `https://fomo.family/tokens/solana/${orig.mintAddress}`
-            : "");
         const symLabel = symbol ? String(symbol).trim().toUpperCase() : "";
         const isForever = data.code === "DEPLOY_SYMBOL_FOREVER";
         const pumpRef =
           typeof orig.explorerUrl === "string" &&
           orig.explorerUrl.includes("pump.fun");
+        const fomoRef =
+          typeof orig.fomoFamilyUrl === "string" &&
+          orig.fomoFamilyUrl.includes("fomo.family");
         let opener;
-        if (isForever && pumpRef) {
+        if (isForever && pumpRef && fomoRef) {
+          opener = symLabel
+            ? `The ${symLabel} ticker is reserved — canonical coin on Pump.fun & fomo.family:`
+            : `This ticker is reserved — canonical coin on Pump.fun & fomo.family:`;
+        } else if (isForever && pumpRef) {
           opener = symLabel
             ? `The ${symLabel} ticker is reserved — use this canonical Pump.fun coin:`
             : `This ticker is reserved — use this canonical Pump.fun coin:`;
@@ -512,11 +572,7 @@ prepareBtn.addEventListener("click", async () => {
             : "",
         ].filter(Boolean);
         const body = lines.join("\n");
-        if (link) {
-          showDeployResultLink(link, body);
-        } else {
-          showStatus(body, false);
-        }
+        showDeployReferenceLinks(body, orig);
         return;
       }
       if (data.code === "DEPLOY_USER_COOLDOWN") {
