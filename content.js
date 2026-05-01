@@ -136,6 +136,17 @@ function profileSolFromStructured() {
     for (const [, pack] of candidates) {
       if (pack.sol.length || pack.evm.length) return pack;
     }
+    /**
+     * Own profile often has only one /balances UUID (the viewer). Every other pack was filtered
+     * out as "viewer" — use that pack for the profile row when URL handle matches logged-in you.
+     */
+    const vpack = balancesByUserId.get(vid);
+    const ownProfile =
+      loggedInFomoHandle &&
+      String(slug).toLowerCase() === String(loggedInFomoHandle).toLowerCase();
+    if (vpack && (vpack.sol.length || vpack.evm.length) && ownProfile) {
+      return vpack;
+    }
     return null;
   }
 
@@ -251,6 +262,7 @@ function applyUserDetailToBuckets(ud) {
         (shouldTrustUserDetailForLoggedInHandle(ud) || viewerOwnsProfilePageUserDetail(ud))
       ) {
         loggedInFomoHandle = ph.trim();
+        pushYouFromDetail(ud);
       }
       pendingUserDetail = null;
       return;
@@ -296,6 +308,37 @@ function pushYouFromDetail(ud) {
   if (ud.evmAddress && !youSeenEvm.has(ud.evmAddress)) {
     youSeenEvm.add(ud.evmAddress);
     youListEvm.push(ud.evmAddress);
+  }
+}
+
+/**
+ * When `responseObject.address` is missing but the JSON walk found wallets, still fill profile canon
+ * for this slug (profile pages skip blind walks into apiList).
+ */
+function supplementProfileCanonFromSniffIfSlugMatches(slug, d) {
+  const ud = d.userDetail;
+  const ph = ud && ud.profileHandle;
+  if (!slug || !ph || String(ph).toLowerCase() !== String(slug).toLowerCase()) return;
+
+  const reSol = /^[1-9A-HJ-NP-Za-km-z]{43,44}$/;
+  const reEvm = /^0x[a-fA-F0-9]{40}$/i;
+  let added = 0;
+  const max = 12;
+  for (const a of d.solana || []) {
+    if (added >= max) break;
+    if (typeof a !== "string" || !reSol.test(a)) continue;
+    if (profileCanonSeenSol.has(a)) continue;
+    profileCanonSeenSol.add(a);
+    profileCanonListSol.push(a);
+    added++;
+  }
+  for (const a of d.evm || []) {
+    if (added >= max) break;
+    if (typeof a !== "string" || !reEvm.test(a)) continue;
+    if (profileCanonSeenEvm.has(a)) continue;
+    profileCanonSeenEvm.add(a);
+    profileCanonListEvm.push(a);
+    added++;
   }
 }
 
@@ -401,6 +444,7 @@ window.addEventListener("message", (event) => {
   if (d.userDetail) {
     applyUserDetailToBuckets(d.userDetail);
     tryFlushPendingUserDetail();
+    supplementProfileCanonFromSniffIfSlugMatches(slug, d);
   }
 
   void publish();
@@ -556,6 +600,19 @@ async function publish() {
     }
   }
 
+  let lastYouSolForStorage = primaryWallet(youListSol);
+  let lastYouEvmForStorage = primaryWallet(youListEvm);
+  if (
+    !lastYouSolForStorage[0] &&
+    !lastYouEvmForStorage[0] &&
+    slug &&
+    loggedInFomoHandle &&
+    String(slug).toLowerCase() === String(loggedInFomoHandle).toLowerCase()
+  ) {
+    lastYouSolForStorage = primaryWallet(profileDisplaySol());
+    lastYouEvmForStorage = primaryWallet(profileDisplayEvm());
+  }
+
   await chrome.storage.local.set({
     lastScanAt: Date.now(),
     lastSolanaAddresses: solana,
@@ -565,8 +622,8 @@ async function publish() {
     lastProfileSlug: slug,
     lastProfileSolana: primaryWallet(profileDisplaySol()),
     lastProfileEvm: primaryWallet(profileDisplayEvm()),
-    lastYouSolana: primaryWallet(youListSol),
-    lastYouEvm: primaryWallet(youListEvm),
+    lastYouSolana: lastYouSolForStorage,
+    lastYouEvm: lastYouEvmForStorage,
     lastYouFomoHandle: loggedInFomoHandle || "",
     lastDeployFomoHandle: lastDeployFomoHandle || "",
   });

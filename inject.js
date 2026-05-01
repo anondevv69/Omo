@@ -88,8 +88,11 @@
       const path = u.pathname || "";
       if (/\/balances/i.test(path)) return null;
 
-      /** GET /v2/users/userHandle/{handle} — canonical profile wallets on /profile/:handle */
-      const byHandle = path.match(/^\/v2\/users\/userHandle\/([^/]+)$/i);
+      /** GET …/userHandle/{handle} or …/handle/{handle} — canonical profile wallets on /profile/:handle */
+      const byHandle = path.match(/\/v2\/users\/userHandle\/([^/]+)$/i) ||
+        path.match(/\/v3\/users\/userHandle\/([^/]+)$/i) ||
+        path.match(/\/v2\/users\/handle\/([^/]+)$/i) ||
+        path.match(/\/api\/v\d+\/users\/userHandle\/([^/]+)$/i);
       if (byHandle) {
         const ro = data?.responseObject;
         if (!ro || typeof ro !== "object") return null;
@@ -103,9 +106,12 @@
         };
       }
 
-      if (!/^\/v2\/users\/[0-9a-f-]{36}$/i.test(path)) return null;
-      const m = path.match(/^\/v2\/users\/([0-9a-f-]{36})$/i);
-      if (!m) return null;
+      if (!/\/users\/[0-9a-f-]{36}$/i.test(path)) return null;
+      const m =
+        path.match(/\/v2\/users\/([0-9a-f-]{36})$/i) ||
+        path.match(/\/v3\/users\/([0-9a-f-]{36})$/i) ||
+        path.match(/\/api\/v\d+\/users\/([0-9a-f-]{36})$/i);
+      if (!m || !m[1]) return null;
       const ro = data?.responseObject;
       if (!ro || typeof ro !== "object") return null;
       const profileHandle =
@@ -127,8 +133,11 @@
 
   function parseBalancesUserId(url) {
     try {
-      const u = new URL(url);
-      const m = u.pathname.match(/^\/v2\/users\/([0-9a-f-]{36})\/balances$/i);
+      const p = new URL(url).pathname || "";
+      const m =
+        p.match(/\/v2\/users\/([0-9a-f-]{36})\/balances$/i) ||
+        p.match(/\/v3\/users\/([0-9a-f-]{36})\/balances$/i) ||
+        p.match(/\/api\/v\d+\/users\/([0-9a-f-]{36})\/balances$/i);
       return m ? m[1] : null;
     } catch {
       return null;
