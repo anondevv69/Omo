@@ -48,6 +48,20 @@ let pendingUserDetail = null;
 /** FOMO @handle for the logged-in viewer (from user-detail API), for deploy metadata. */
 let loggedInFomoHandle = "";
 
+/** Load sticky handle from storage before processing user-detail (apply runs before publish). */
+async function rehydrateLoggedInFomoHandleIfNeeded() {
+  if (loggedInFomoHandle) return;
+  try {
+    const r = await chrome.storage.local.get(["fomoLoggedIn", "lastYouFomoHandle"]);
+    if (r.fomoLoggedIn !== false) {
+      const h = String(r.lastYouFomoHandle || "").trim();
+      if (h) loggedInFomoHandle = h;
+    }
+  } catch {
+    /* ignore */
+  }
+}
+
 function requestMainWorldSniffer() {
   chrome.runtime.sendMessage({ type: "INSTALL_MAIN_SNIFFER" }, () => {
     void chrome.runtime.lastError;
@@ -243,6 +257,20 @@ function applyUserDetailToBuckets(ud) {
 
   if (slug) {
     const ph = ud.profileHandle;
+    /**
+     * On `/profile/SomeoneElse`, FOMO still loads **your** user row (nav / session). `ph` is your
+     * handle; URL `slug` is who you're viewing — add to YOU only, do not touch their profile row.
+     */
+    if (
+      typeof ph === "string" &&
+      ph.trim() &&
+      loggedInFomoHandle &&
+      String(ph).toLowerCase() === String(loggedInFomoHandle).toLowerCase() &&
+      String(slug).toLowerCase() !== String(ph).toLowerCase()
+    ) {
+      addCanon(youListSol, youListEvm, youSeenSol, youSeenEvm, ud.address, ud.evmAddress);
+      return;
+    }
     if (
       ph &&
       String(ph).toLowerCase() === String(slug).toLowerCase()
@@ -450,12 +478,16 @@ window.addEventListener("message", (event) => {
   }
 
   if (d.userDetail) {
-    applyUserDetailToBuckets(d.userDetail);
-    tryFlushPendingUserDetail();
-    supplementProfileCanonFromSniffIfSlugMatches(slug, d);
+    void (async () => {
+      await rehydrateLoggedInFomoHandleIfNeeded();
+      applyUserDetailToBuckets(d.userDetail);
+      tryFlushPendingUserDetail();
+      supplementProfileCanonFromSniffIfSlugMatches(slug, d);
+      await publish();
+    })();
+  } else {
+    void publish();
   }
-
-  void publish();
 });
 
 function collectText(el) {
@@ -557,21 +589,7 @@ function profileDisplayEvm() {
 }
 
 async function publish() {
-  if (!loggedInFomoHandle) {
-    try {
-      const r = await chrome.storage.local.get([
-        "fomoLoggedIn",
-        "lastYouFomoHandle",
-      ]);
-      /** Only skip restoring when explicitly logged out — tabs that never saw `fomo-auth` yet still have `fomoLoggedIn` undefined. */
-      if (r.fomoLoggedIn !== false) {
-        const h = String(r.lastYouFomoHandle || "").trim();
-        if (h) loggedInFomoHandle = h;
-      }
-    } catch {
-      /* ignore */
-    }
-  }
+  await rehydrateLoggedInFomoHandleIfNeeded();
 
   const slug = currentProfileSlug();
   /** Do not clear the viewer handle when URL is another profile — we only set it via trusted user-detail / own-wallet rules. */
