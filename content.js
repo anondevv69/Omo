@@ -437,18 +437,18 @@ function pageScanSolanaEvm(slug, dom) {
   };
 }
 
-/** Prefer GET /users/{owner}, then structured balances for non-viewer UUID, then DOM/walk fallback */
+/** Prefer structured balances (wallet per row), then GET /users/{owner} canon, then DOM/walk */
 function profileDisplaySol() {
-  if (profileCanonListSol.length) return [...profileCanonListSol];
   const fromBal = profileSolFromStructured();
   if (fromBal?.sol?.length) return [...fromBal.sol];
+  if (profileCanonListSol.length) return [...profileCanonListSol];
   return [...profListSol];
 }
 
 function profileDisplayEvm() {
-  if (profileCanonListEvm.length) return [...profileCanonListEvm];
   const fromBal = profileSolFromStructured();
   if (fromBal?.evm?.length) return [...fromBal.evm];
+  if (profileCanonListEvm.length) return [...profileCanonListEvm];
   return [...profListEvm];
 }
 

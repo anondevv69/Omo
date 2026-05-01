@@ -11,9 +11,30 @@ const imageEl = document.getElementById("image");
 const descriptionEl = document.getElementById("description");
 const statusEl = document.getElementById("status");
 const prepareBtn = document.getElementById("prepare");
-const pageContextEl = document.getElementById("pageContext");
+const profileViewingLineEl = document.getElementById("profileViewingLine");
 const loginGateEl = document.getElementById("login-gate");
 const appRootEl = document.getElementById("app-root");
+const headerStatusEl = document.getElementById("headerStatus");
+
+/** When true, header shows Error until a successful Refresh clears it. */
+let headerError = false;
+
+function renderHeaderBadge(loggedIn) {
+  if (!headerStatusEl) return;
+  headerStatusEl.classList.remove("ok", "warn", "err");
+  if (headerError) {
+    headerStatusEl.textContent = "Error";
+    headerStatusEl.classList.add("err");
+    return;
+  }
+  if (loggedIn === true) {
+    headerStatusEl.textContent = "Logged in";
+    headerStatusEl.classList.add("ok");
+  } else {
+    headerStatusEl.textContent = "Sign in";
+    headerStatusEl.classList.add("warn");
+  }
+}
 
 function showStatus(text, err = false) {
   statusEl.hidden = false;
@@ -73,11 +94,12 @@ async function refreshFromStorage() {
 
   const slug = session.lastProfileSlug;
   if (slug) {
-    pageContextEl.hidden = false;
-    pageContextEl.innerHTML = `Viewing profile: <strong>@${slug}</strong>`;
+    profileViewingLineEl.hidden = false;
+    profileViewingLineEl.innerHTML = `Viewing profile <strong>@${slug}</strong>`;
   } else {
-    pageContextEl.hidden = true;
-    pageContextEl.textContent = "";
+    profileViewingLineEl.hidden = false;
+    profileViewingLineEl.innerHTML =
+      'Viewing profile <span class="muted">— open a profile on fomo.family</span>';
   }
 
   renderList(
@@ -107,11 +129,15 @@ async function refreshFromStorage() {
   creatorEl.placeholder = youSol.length
     ? ""
     : "Refresh after sign-in — your Solana wallet not detected yet";
+
+  renderHeaderBadge(loggedIn);
 }
 
 document.getElementById("rescan").addEventListener("click", async () => {
   const tabId = await findFomoTabId();
   if (!tabId) {
+    headerError = true;
+    renderHeaderBadge(false);
     showStatus("Open fomo.family in a tab, load a profile or balances, then tap Refresh.", true);
     return;
   }
@@ -122,6 +148,8 @@ document.getElementById("rescan").addEventListener("click", async () => {
       tabId,
     });
     if (!inj?.ok) {
+      headerError = true;
+      renderHeaderBadge(false);
       showStatus(
         `Could not hook this page (${inj?.error || "unknown"}). Try a full reload of the fomo tab.`,
         true
@@ -130,13 +158,18 @@ document.getElementById("rescan").addEventListener("click", async () => {
     }
     const scan = await chrome.tabs.sendMessage(tabId, { type: "SCAN" });
     if (scan && scan.ok === false) {
+      headerError = true;
+      renderHeaderBadge(false);
       showStatus(scan.error || "Scan failed", true);
       return;
     }
   } catch (e) {
+    headerError = true;
+    renderHeaderBadge(false);
     showStatus(e instanceof Error ? e.message : String(e), true);
     return;
   }
+  headerError = false;
   await refreshFromStorage();
   const s = await chrome.storage.local.get(["fomoLoggedIn"]);
   showStatus(
@@ -150,6 +183,8 @@ document.getElementById("rescan").addEventListener("click", async () => {
 prepareBtn.addEventListener("click", async () => {
   const session = await chrome.storage.local.get(["fomoLoggedIn"]);
   if (session.fomoLoggedIn !== true) {
+    headerError = true;
+    renderHeaderBadge(false);
     showStatus("Sign in to fomo.family first, then Refresh.", true);
     return;
   }
@@ -164,6 +199,8 @@ prepareBtn.addEventListener("click", async () => {
   const description = descriptionEl.value.trim();
 
   if (!creatorAddress || !name || !symbol) {
+    headerError = true;
+    renderHeaderBadge(true);
     showStatus(
       !creatorAddress
         ? "Your wallet wasn’t detected. Stay signed in on fomo.family and tap Refresh."
@@ -191,6 +228,8 @@ prepareBtn.addEventListener("click", async () => {
     });
     const data = await res.json().catch(() => ({}));
     if (!res.ok) {
+      headerError = true;
+      renderHeaderBadge(true);
       showStatus(JSON.stringify(data, null, 2) || res.statusText, true);
       return;
     }
@@ -201,6 +240,8 @@ prepareBtn.addEventListener("click", async () => {
       transactionBase64: data.transactionBase64,
       next: data.hint,
     };
+    headerError = false;
+    renderHeaderBadge(true);
     showStatus(
       [
         "Prepare succeeded — this is normal (unsigned tx).",
@@ -214,6 +255,8 @@ prepareBtn.addEventListener("click", async () => {
       ].join("\n")
     );
   } catch (e) {
+    headerError = true;
+    renderHeaderBadge(true);
     showStatus(e instanceof Error ? e.message : String(e), true);
   } finally {
     prepareBtn.disabled = false;

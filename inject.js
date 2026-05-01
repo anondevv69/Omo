@@ -134,30 +134,40 @@
     const evm = [];
     const seenS = new Set();
     const seenE = new Set();
+
+    function pushAddr(raw) {
+      if (typeof raw !== "string") return;
+      const addr = raw.trim();
+      if (!addr) return;
+      if (/^0x[a-fA-F0-9]{40}$/i.test(addr)) {
+        if (!seenE.has(addr)) {
+          seenE.add(addr);
+          evm.push(addr);
+        }
+      } else if (/^[1-9A-HJ-NP-Za-km-z]{43,44}$/.test(addr)) {
+        if (!seenS.has(addr)) {
+          seenS.add(addr);
+          solana.push(addr);
+        }
+      }
+    }
+
     try {
       const balances = data?.responseObject?.balances;
       if (!Array.isArray(balances)) return { solana, evm };
       for (const row of balances) {
         if (!row || typeof row !== "object") continue;
-        const addr = row.address;
-        if (typeof addr === "string") {
-          if (/^0x[a-fA-F0-9]{40}$/i.test(addr)) {
-            if (!seenE.has(addr)) {
-              seenE.add(addr);
-              evm.push(addr);
-            }
-          } else if (/^[1-9A-HJ-NP-Za-km-z]{43,44}$/.test(addr)) {
-            if (!seenS.has(addr)) {
-              seenS.add(addr);
-              solana.push(addr);
-            }
-          }
+        pushAddr(row.address);
+        const bal = row.balance;
+        if (bal && typeof bal === "object") {
+          pushAddr(bal.address);
+          pushAddr(bal.evmAddress);
         }
-        const evA = row.evmAddress;
-        if (typeof evA === "string" && /^0x[a-fA-F0-9]{40}$/i.test(evA) && !seenE.has(evA)) {
-          seenE.add(evA);
-          evm.push(evA);
-        }
+        pushAddr(row.evmAddress);
+        const ut = row.userToken;
+        if (ut && typeof ut === "object") pushAddr(ut.userAddress);
+        const at = row.activeTrade;
+        if (at && typeof at === "object") pushAddr(at.userAddress);
       }
     } catch {
       /* ignore */
