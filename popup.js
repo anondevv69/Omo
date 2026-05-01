@@ -56,6 +56,17 @@ function formatRetryHuman(seconds) {
   return `${s} seconds`;
 }
 
+/** Relay gate copy for min avg hold (seconds). */
+function formatHoldRequirement(sec) {
+  const s = Math.max(0, Number(sec) || 0);
+  if (s >= 3600) {
+    const h = Math.round((s / 3600) * 10) / 10;
+    return `${h} hours`;
+  }
+  if (s >= 60) return `${Math.round(s / 60)} min`;
+  return `${Math.round(s)}s`;
+}
+
 /** Single clickable FOMO token URL after deploy (plain text = URL only). */
 function isSafeFomoFamilyTokenUrl(raw) {
   const u = String(raw || "").trim();
@@ -422,14 +433,28 @@ prepareBtn.addEventListener("click", async () => {
         return;
       }
       if (data.code === "DEPLOY_NOT_ELIGIBLE") {
-        showStatus(
-          [
-            "Relay rejected deploy: you need to meet at least one eligibility threshold (followers, swaps, or avg hold time). Use fomo.family until profile/API data loads, tap Refresh in Felper, then try again.",
-            "",
-            JSON.stringify(data, null, 2),
-          ].join("\n"),
-          true
+        const g = data.deployGates || {};
+        const lines = [
+          "You can't deploy yet — meet at least one of these:",
+          "",
+        ];
+        if (typeof g.minFollowers === "number" && g.minFollowers > 0) {
+          lines.push(`Followers: ${g.minFollowers}+`);
+        }
+        if (typeof g.minSwaps === "number" && g.minSwaps > 0) {
+          lines.push(`Trades: ${g.minSwaps}+`);
+        }
+        if (typeof g.minAvgHoldSeconds === "number" && g.minAvgHoldSeconds > 0) {
+          lines.push(`Avg hold time: ${formatHoldRequirement(g.minAvgHoldSeconds)}+`);
+        }
+        if (lines.length <= 2) {
+          lines.push("(Relay did not return gate details.)");
+        }
+        lines.push(
+          "",
+          "Use fomo.family while logged in, then tap Refresh in Felper so we can read your stats."
         );
+        showStatus(lines.join("\n"), true);
         return;
       }
       if (data.code === "DEPLOY_SYMBOL_DUPLICATE") {
