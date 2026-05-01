@@ -100,6 +100,68 @@ async function findFomoTabId() {
   return matches[0]?.id ?? null;
 }
 
+/** Re-sniff fomo tab, then read handle from storage or active /profile URL + wallet match. */
+async function resolveFomoHandleForDeploy() {
+  const tabId = await findFomoTabId();
+  if (tabId) {
+    try {
+      await chrome.runtime.sendMessage({ type: "INSTALL_MAIN_SNIFFER", tabId });
+    } catch {
+      /* ignore */
+    }
+    try {
+      await chrome.tabs.sendMessage(tabId, { type: "SCAN" });
+    } catch {
+      /* ignore */
+    }
+  }
+
+  const storage = await chrome.storage.local.get([
+    "fomoLoggedIn",
+    "lastYouFomoHandle",
+    "lastDeployFomoHandle",
+    "lastYouSolana",
+    "lastYouEvm",
+    "lastProfileSolana",
+    "lastProfileEvm",
+    "lastProfileSlug",
+  ]);
+
+  let handle =
+    String(storage.lastYouFomoHandle || "").trim() ||
+    String(storage.lastDeployFomoHandle || "").trim();
+  if (handle) return { handle, storage };
+
+  if (storage.fomoLoggedIn !== true) return { handle: "", storage };
+
+  const tab = await getActiveTab();
+  const url = tab?.url;
+  if (!url || !isFomoUrl(url)) return { handle: "", storage };
+
+  try {
+    const u = new URL(url);
+    const m = u.pathname.match(/^\/profile\/([^/]+)/);
+    if (!m) return { handle: "", storage };
+    const slug = decodeURIComponent(m[1]).replace(/^@+/, "").trim();
+    if (!slug) return { handle: "", storage };
+
+    const youSol = String(storage.lastYouSolana?.[0] || "").trim();
+    const profSol = String(storage.lastProfileSolana?.[0] || "").trim();
+    const youEvm = String(storage.lastYouEvm?.[0] || "").trim();
+    const profEvm = String(storage.lastProfileEvm?.[0] || "").trim();
+    if (
+      (youSol && profSol && youSol === profSol) ||
+      (youEvm && profEvm && youEvm === profEvm)
+    ) {
+      return { handle: slug, storage };
+    }
+  } catch {
+    /* ignore */
+  }
+
+  return { handle: "", storage };
+}
+
 function renderList(el, label, addrs) {
   el.innerHTML =
     !addrs || addrs.length === 0
@@ -208,23 +270,14 @@ document.getElementById("rescan").addEventListener("click", async () => {
 });
 
 prepareBtn.addEventListener("click", async () => {
-  const storage = await chrome.storage.local.get([
-    "fomoLoggedIn",
-    "lastYouFomoHandle",
-    "lastDeployFomoHandle",
-  ]);
-  const loggedInBadge = storage.fomoLoggedIn === true;
-  const base = RELAY_ORIGIN.replace(/\/$/, "");
-  const fomoHandle = (
-    (storage.lastYouFomoHandle || "").trim() ||
-    (storage.lastDeployFomoHandle || "").trim()
-  );
   const name = nameEl.value.trim();
   const symbol = symbolEl.value.trim();
   const image = imageEl.value.trim();
   const description = descriptionEl.value.trim();
 
   if (!name || !symbol) {
+    const pre = await chrome.storage.local.get(["fomoLoggedIn"]);
+    const loggedInBadge = pre.fomoLoggedIn === true;
     headerError = true;
     renderHeaderBadge(loggedInBadge);
     showStatus("Enter token name and symbol.", true);
@@ -232,8 +285,19 @@ prepareBtn.addEventListener("click", async () => {
   }
 
   prepareBtn.disabled = true;
+  showStatus("Syncing FOMO profile…", false);
+
+  const { handle: fomoHandle, storage } = await resolveFomoHandleForDeploy();
+  const loggedInBadge = storage.fomoLoggedIn === true;
+  const base = RELAY_ORIGIN.replace(/\/$/, "");
+
+  const deployHint =
+    loggedInBadge && !fomoHandle
+      ? "No FOMO @handle for metadata — open your profile on fomo.family and tap Refresh, then deploy again. "
+      : "";
+
   showStatus(
-    "Deploying… (instant when fomo mint pool has keys; otherwise you’ll see pool-empty — relay fills in background)"
+    `${deployHint}Deploying… (instant when fomo mint pool has keys; otherwise you’ll see pool-empty — relay fills in background)`
   );
 
   const controller = new AbortController();
