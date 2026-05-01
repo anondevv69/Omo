@@ -1,5 +1,9 @@
 # Omo — Chrome extension for fomo.family
 
+<p align="center">
+  <img src="icons/icon128.png" alt="Omo" width="128" height="128">
+</p>
+
 Omo reads wallet addresses from **[fomo.family](https://fomo.family)** while you browse and can prepare **Pump.fun** token deploys through a relay server.
 
 > **Publishing this repo:** Put **everything in this folder** at the **root** of your GitHub repo (so `manifest.json` sits next to this `README.md`). This folder is the entire extension — no API server code is included here.
@@ -51,7 +55,7 @@ Navigating between pages usually updates storage automatically; if something loo
 3. Fill **Coin name** and **Ticker** (required). Optionally add description, image URL, and **social links** (website, X, Telegram).
 4. Click **Deploy**.
 
-Deploy goes through the **relay** configured in this build (see **Forking / custom relay** below). The relay pays deployment fees and signs on your behalf; metadata can include **Deployed on Omo** and your FOMO profile link.
+Deploy goes through the **relay** configured in this build. The relay pays deployment fees and signs on your behalf; metadata can include **Deployed on Omo** and your FOMO profile link.
 
 ---
 
@@ -77,20 +81,6 @@ If deploy fails with an eligibility message, your stats may still be loading —
 
 - **Per-account cooldown** — only one deploy per user within a window (often described as a “daily limit”).
 - **Same ticker** — deploying the **same symbol** again may be blocked for a period; you may get a link to the **original** token instead.
-
-### Reserved tickers
-
-Some symbols (for example the **`OMO`** ticker) may be limited to **one deploy ever** for the whole product.
-
-### Mint pool / vanity
-
-If the relay uses a **vanity mint pool** (e.g. addresses ending in `omo`) and the pool is empty, deploy may fail until keys are available — wait or contact the operator.
-
----
-
-## Forking / custom relay
-
-Developers can point Omo at another relay by editing **`RELAY_ORIGIN`** in `popup.js` (near the top), then reloading the extension in `chrome://extensions`.
 
 ---
 
