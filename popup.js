@@ -4,7 +4,23 @@
  */
 const RELAY_ORIGIN = "https://fomofam-production.up.railway.app";
 
-const creatorEl = document.getElementById("creator");
+const deployerHintEl = document.getElementById("deployerHint");
+
+async function loadDeployerHint() {
+  if (!deployerHintEl) return;
+  const base = RELAY_ORIGIN.replace(/\/$/, "");
+  try {
+    const r = await fetch(`${base}/api/deploy/info`);
+    const j = await r.json().catch(() => ({}));
+    if (j.deployerPubkey) {
+      deployerHintEl.textContent = `On-chain creator & Pump fees: ${j.deployerPubkey}`;
+    } else {
+      deployerHintEl.textContent = j.error || "Relay deployer pubkey unavailable.";
+    }
+  } catch {
+    deployerHintEl.textContent = "Could not reach relay /api/deploy/info.";
+  }
+}
 const nameEl = document.getElementById("name");
 const symbolEl = document.getElementById("symbol");
 const imageEl = document.getElementById("image");
@@ -88,9 +104,9 @@ async function refreshFromStorage() {
 
   const loggedIn = session.fomoLoggedIn === true;
   loginGateEl.hidden = loggedIn;
-  document.body.classList.toggle("extension-locked", !loggedIn);
-  appRootEl.inert = !loggedIn;
-  prepareBtn.disabled = !loggedIn;
+  document.body.classList.toggle("extension-locked", false);
+  appRootEl.inert = false;
+  prepareBtn.disabled = false;
 
   const slug = session.lastProfileSlug;
   if (slug) {
@@ -124,13 +140,8 @@ async function refreshFromStorage() {
     session.lastProfileEvm ?? []
   );
 
-  const youSol = session.lastYouSolana ?? [];
-  creatorEl.value = youSol[0] ? youSol[0] : "";
-  creatorEl.placeholder = youSol.length
-    ? ""
-    : "Refresh after sign-in — your Solana wallet not detected yet";
-
   renderHeaderBadge(loggedIn);
+  void loadDeployerHint();
 }
 
 document.getElementById("rescan").addEventListener("click", async () => {
@@ -181,45 +192,30 @@ document.getElementById("rescan").addEventListener("click", async () => {
 });
 
 prepareBtn.addEventListener("click", async () => {
-  const session = await chrome.storage.local.get(["fomoLoggedIn"]);
-  if (session.fomoLoggedIn !== true) {
-    headerError = true;
-    renderHeaderBadge(false);
-    showStatus("Sign in to fomo.family first, then Refresh.", true);
-    return;
-  }
-
-  const base = RELAY_ORIGIN.replace(/\/$/, "");
-  const sessionKeys = await chrome.storage.local.get([
-    "lastYouSolana",
+  const storage = await chrome.storage.local.get([
+    "fomoLoggedIn",
     "lastYouFomoHandle",
   ]);
-  const youSol = sessionKeys.lastYouSolana ?? [];
-  const fomoHandle = (sessionKeys.lastYouFomoHandle || "").trim();
-  const creatorAddress = (youSol[0] || creatorEl.value || "").trim();
+  const loggedInBadge = storage.fomoLoggedIn === true;
+  const base = RELAY_ORIGIN.replace(/\/$/, "");
+  const fomoHandle = (storage.lastYouFomoHandle || "").trim();
   const name = nameEl.value.trim();
   const symbol = symbolEl.value.trim();
   const image = imageEl.value.trim();
   const description = descriptionEl.value.trim();
 
-  if (!creatorAddress || !name || !symbol) {
+  if (!name || !symbol) {
     headerError = true;
-    renderHeaderBadge(true);
-    showStatus(
-      !creatorAddress
-        ? "Your wallet wasn’t detected. Stay signed in on fomo.family and tap Refresh."
-        : "Enter token name and symbol.",
-      true
-    );
+    renderHeaderBadge(loggedInBadge);
+    showStatus("Enter token name and symbol.", true);
     return;
   }
 
   prepareBtn.disabled = true;
-  showStatus("Preparing deployment…");
+  showStatus("Deploying (relay signing & broadcasting)…");
 
   try {
     const payload = {
-      creatorAddress,
       name,
       symbol,
       ...(description ? { description } : {}),
@@ -234,36 +230,35 @@ prepareBtn.addEventListener("click", async () => {
     const data = await res.json().catch(() => ({}));
     if (!res.ok) {
       headerError = true;
-      renderHeaderBadge(true);
+      renderHeaderBadge(loggedInBadge);
       showStatus(JSON.stringify(data, null, 2) || res.statusText, true);
       return;
     }
-    const summary = {
-      mintAddress: data.mintAddress,
-      feePayer: data.feePayer,
-      creatorFeeRecipient: data.creatorFeeRecipient,
-      metadataUri: data.metadataUri,
-      transactionBase64: data.transactionBase64,
-      next: data.hint,
-      deployNote: data.deployNote,
-    };
     headerError = false;
-    renderHeaderBadge(true);
+    renderHeaderBadge(loggedInBadge);
     showStatus(
       [
-        "Prepare succeeded — Felper’s relay pays deployment fees; creator trading fees go to creatorFeeRecipient (your logged-in Solana address).",
+        data.confirmed ? "Deployed on-chain." : "Submitted — confirm status below.",
         "",
-        "Solana still requires one signature from that creator wallet, then POST the signed tx:",
-        `  POST ${base}/api/deploy/submit`,
-        '  body: { "transactionBase64": "<same field after signing>" }',
-        "",
-        "— Response —",
-        JSON.stringify(summary, null, 2),
+        JSON.stringify(
+          {
+            signature: data.signature,
+            confirmed: data.confirmed,
+            mintAddress: data.mintAddress,
+            deployerPubkey: data.deployerPubkey,
+            metadataUri: data.metadataUri,
+            explorerUrl: data.explorerUrl,
+            mintExplorerUrl: data.mintExplorerUrl,
+            note: data.note,
+          },
+          null,
+          2
+        ),
       ].join("\n")
     );
   } catch (e) {
     headerError = true;
-    renderHeaderBadge(true);
+    renderHeaderBadge(loggedInBadge);
     showStatus(e instanceof Error ? e.message : String(e), true);
   } finally {
     prepareBtn.disabled = false;

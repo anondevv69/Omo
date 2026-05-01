@@ -313,9 +313,10 @@
     <details class="fold-you fold-deploy">
       <summary>Deploy token</summary>
       <div class="fold-you-inner">
-        <p class="hint">Uses your logged-in wallet only — not the profile you’re viewing.</p>
-        <label for="creator">Your creator wallet</label>
-        <input id="creator" type="text" readonly spellcheck="false" />
+        <p class="hint">
+          You only choose token details. Deployment is signed and paid by the Felper relay wallet (same key as in Railway <code>FEE_PAYER_SECRET</code>).
+        </p>
+        <p class="hint" id="deployerHint">Loading relay deployer…</p>
 
         <div class="section-title">Token</div>
         <label for="name">Name</label>
