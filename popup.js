@@ -37,8 +37,42 @@ function renderHeaderBadge(loggedIn) {
 
 function showStatus(text, err = false) {
   statusEl.hidden = false;
+  statusEl.replaceChildren();
   statusEl.textContent = text;
   statusEl.style.borderColor = err ? "#f28b82" : "#2d3139";
+}
+
+/** Single clickable FOMO token URL after deploy (plain text = URL only). */
+function isSafeFomoFamilyTokenUrl(raw) {
+  const u = String(raw || "").trim();
+  if (!u) return false;
+  try {
+    const url = new URL(u);
+    if (url.protocol !== "https:") return false;
+    const okHost = url.hostname === "fomo.family" || url.hostname === "www.fomo.family";
+    return okHost && url.pathname.startsWith("/tokens/solana/");
+  } catch {
+    return false;
+  }
+}
+
+function showDeployResultLink(fomoUrl) {
+  statusEl.hidden = false;
+  statusEl.replaceChildren();
+  statusEl.style.borderColor = "#2d3139";
+  const href = String(fomoUrl || "").trim();
+  if (!isSafeFomoFamilyTokenUrl(href)) {
+    statusEl.textContent = href || "Missing token link.";
+    statusEl.style.borderColor = "#f28b82";
+    return;
+  }
+  const a = document.createElement("a");
+  a.className = "deploy-result-link";
+  a.href = href;
+  a.target = "_blank";
+  a.rel = "noopener noreferrer";
+  a.textContent = href;
+  statusEl.appendChild(a);
 }
 
 async function getActiveTab() {
@@ -236,44 +270,15 @@ prepareBtn.addEventListener("click", async () => {
     headerError = false;
     renderHeaderBadge(loggedInBadge);
     const mint = data.mintAddress || "";
-    const fomoLink = data.fomoFamilyUrl ||
-      (mint ? `https://fomo.family/tokens/solana/${mint}` : "");
-    const timedOut = data.confirmationTimedOut === true;
-    const broadcastOnly = data.broadcastOnly === true;
-    const headline = broadcastOnly
-      ? "Sent — broadcast instantly. Open Solscan / Pump to confirm on-chain."
-      : timedOut
-        ? "Submitted — RPC confirmation timed out (tx may still confirm). Check explorer links."
-        : data.confirmed
-          ? "Deployed successfully."
-          : "Submitted — confirm status below.";
-    showStatus(
-      [
-        headline,
-        "",
-        fomoLink ? `Open on FOMO: ${fomoLink}` : "",
-        mint ? `Mint (ends fomo): ${mint}` : "",
-        "",
-        JSON.stringify(
-          {
-            fomoFamilyUrl: data.fomoFamilyUrl ?? fomoLink,
-            mintAddress: data.mintAddress,
-            confirmed: data.confirmed,
-            broadcastOnly: data.broadcastOnly,
-            confirmationTimedOut: data.confirmationTimedOut,
-            warning: data.warning,
-            signature: data.signature,
-            note: data.note,
-            pumpFunUrl: mint ? `https://pump.fun/coin/${mint}` : undefined,
-            explorerUrl: data.explorerUrl,
-          },
-          null,
-          2
-        ),
-      ]
-        .filter((line) => line !== "")
-        .join("\n")
-    );
+    const fomoLink = (
+      data.fomoFamilyUrl ||
+      (mint ? `https://fomo.family/tokens/solana/${mint}` : "")
+    ).trim();
+    if (fomoLink) {
+      showDeployResultLink(fomoLink);
+    } else {
+      showStatus("Deployed — no FOMO URL in response.", false);
+    }
   } catch (e) {
     headerError = true;
     renderHeaderBadge(loggedInBadge);
