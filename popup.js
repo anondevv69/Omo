@@ -67,15 +67,17 @@ function formatHoldRequirement(sec) {
   return `${Math.round(s)}s`;
 }
 
-/** Single clickable FOMO token URL after deploy (plain text = URL only). */
-function isSafeFomoFamilyTokenUrl(raw) {
+/** HTTPS links we allow as deploy result / duplicate-token references. */
+function isSafeDeployReferenceUrl(raw) {
   const u = String(raw || "").trim();
   if (!u) return false;
   try {
     const url = new URL(u);
     if (url.protocol !== "https:") return false;
-    const okHost = url.hostname === "fomo.family" || url.hostname === "www.fomo.family";
-    return okHost && url.pathname.startsWith("/tokens/solana/");
+    if (url.hostname === "pump.fun" && url.pathname.startsWith("/coin/")) return true;
+    const okFomo =
+      url.hostname === "fomo.family" || url.hostname === "www.fomo.family";
+    return okFomo && url.pathname.startsWith("/tokens/solana/");
   } catch {
     return false;
   }
@@ -98,7 +100,7 @@ function showDeployResultLink(fomoUrl, preambleText) {
     statusEl.appendChild(pre);
   }
   const href = String(fomoUrl || "").trim();
-  if (!isSafeFomoFamilyTokenUrl(href)) {
+  if (!isSafeDeployReferenceUrl(href)) {
     const fallback = document.createElement("div");
     fallback.textContent = href || "Missing token link.";
     statusEl.appendChild(fallback);
@@ -471,14 +473,22 @@ prepareBtn.addEventListener("click", async () => {
         renderHeaderBadge(loggedInBadge);
         const orig = data.original || {};
         const link =
+          (typeof orig.explorerUrl === "string" && orig.explorerUrl.trim()) ||
           orig.fomoFamilyUrl ||
           (orig.mintAddress
             ? `https://fomo.family/tokens/solana/${orig.mintAddress}`
             : "");
         const symLabel = symbol ? String(symbol).trim().toUpperCase() : "";
         const isForever = data.code === "DEPLOY_SYMBOL_FOREVER";
+        const pumpRef =
+          typeof orig.explorerUrl === "string" &&
+          orig.explorerUrl.includes("pump.fun");
         let opener;
-        if (isForever) {
+        if (isForever && pumpRef) {
+          opener = symLabel
+            ? `The ${symLabel} ticker is reserved — use this canonical Pump.fun coin:`
+            : `This ticker is reserved — use this canonical Pump.fun coin:`;
+        } else if (isForever) {
           opener = symLabel
             ? `Ticker ${symLabel} can only be deployed once through Omo. Here’s the original token on FOMO:`
             : `This ticker can only be deployed once through Omo. Here’s the original token on FOMO:`;
