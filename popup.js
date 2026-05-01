@@ -211,10 +211,14 @@ prepareBtn.addEventListener("click", async () => {
   const storage = await chrome.storage.local.get([
     "fomoLoggedIn",
     "lastYouFomoHandle",
+    "lastDeployFomoHandle",
   ]);
   const loggedInBadge = storage.fomoLoggedIn === true;
   const base = RELAY_ORIGIN.replace(/\/$/, "");
-  const fomoHandle = (storage.lastYouFomoHandle || "").trim();
+  const fomoHandle = (
+    (storage.lastYouFomoHandle || "").trim() ||
+    (storage.lastDeployFomoHandle || "").trim()
+  );
   const name = nameEl.value.trim();
   const symbol = symbolEl.value.trim();
   const image = imageEl.value.trim();

@@ -321,10 +321,18 @@ function recordBalancesStructured(d) {
 window.addEventListener("message", (event) => {
   const d = event.data;
   if (d?.source === MSG_SOURCE && d.type === "fomo-auth") {
+    const ok = d.ok === true;
     void chrome.storage.local.set({
-      fomoLoggedIn: d.ok === true,
+      fomoLoggedIn: ok,
       fomoAuthAt: Date.now(),
+      ...(ok
+        ? {}
+        : {
+            lastYouFomoHandle: "",
+            lastDeployFomoHandle: "",
+          }),
     });
+    if (!ok) loggedInFomoHandle = "";
     return;
   }
   if (!d || d.source !== MSG_SOURCE || d.type !== "api-sniff") return;
@@ -497,15 +505,23 @@ function profileDisplayEvm() {
 }
 
 async function publish() {
-  const slug = currentProfileSlug();
-  /** Viewing someone else's /profile/slug — don't keep their @handle for deploy metadata. */
-  if (
-    slug &&
-    loggedInFomoHandle &&
-    String(slug).toLowerCase() !== String(loggedInFomoHandle).toLowerCase()
-  ) {
-    loggedInFomoHandle = "";
+  if (!loggedInFomoHandle) {
+    try {
+      const r = await chrome.storage.local.get([
+        "fomoLoggedIn",
+        "lastYouFomoHandle",
+      ]);
+      if (r.fomoLoggedIn === true) {
+        const h = String(r.lastYouFomoHandle || "").trim();
+        if (h) loggedInFomoHandle = h;
+      }
+    } catch {
+      /* ignore */
+    }
   }
+
+  const slug = currentProfileSlug();
+  /** Do not clear the viewer handle when URL is another profile — we only set it via trusted user-detail / own-wallet rules. */
 
   if (slug !== lastProfileSlugPublished) {
     profSeenSol.clear();
@@ -525,6 +541,21 @@ async function publish() {
   const dom = extractAddresses();
   const { solana, evm } = pageScanSolanaEvm(slug, dom);
 
+  /** When @handle isn’t inferred yet, still tag deploys if viewer’s wallet matches this profile row. */
+  let lastDeployFomoHandle = loggedInFomoHandle || "";
+  if (!lastDeployFomoHandle && slug) {
+    const youSol = primaryWallet(youListSol)[0];
+    const profSol = primaryWallet(profileDisplaySol())[0];
+    const youEvm = primaryWallet(youListEvm)[0];
+    const profEvm = primaryWallet(profileDisplayEvm())[0];
+    if (
+      (youSol && profSol && youSol === profSol) ||
+      (youEvm && profEvm && youEvm === profEvm)
+    ) {
+      lastDeployFomoHandle = slug;
+    }
+  }
+
   await chrome.storage.local.set({
     lastScanAt: Date.now(),
     lastSolanaAddresses: solana,
@@ -537,6 +568,7 @@ async function publish() {
     lastYouSolana: primaryWallet(youListSol),
     lastYouEvm: primaryWallet(youListEvm),
     lastYouFomoHandle: loggedInFomoHandle || "",
+    lastDeployFomoHandle: lastDeployFomoHandle || "",
   });
 }
 
