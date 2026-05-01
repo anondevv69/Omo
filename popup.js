@@ -102,6 +102,18 @@ async function findFomoTabId() {
 
 /** Re-sniff fomo tab, then read handle from storage or active /profile URL + wallet match. */
 async function resolveFomoHandleForDeploy() {
+  const keys = [
+    "fomoLoggedIn",
+    "lastYouFomoHandle",
+    "lastDeployFomoHandle",
+    "lastYouSolana",
+    "lastYouEvm",
+    "lastProfileSolana",
+    "lastProfileEvm",
+    "lastProfileSlug",
+  ];
+  const beforeScan = await chrome.storage.local.get(keys);
+
   const tabId = await findFomoTabId();
   if (tabId) {
     try {
@@ -116,20 +128,13 @@ async function resolveFomoHandleForDeploy() {
     }
   }
 
-  const storage = await chrome.storage.local.get([
-    "fomoLoggedIn",
-    "lastYouFomoHandle",
-    "lastDeployFomoHandle",
-    "lastYouSolana",
-    "lastYouEvm",
-    "lastProfileSolana",
-    "lastProfileEvm",
-    "lastProfileSlug",
-  ]);
+  const storage = await chrome.storage.local.get(keys);
 
   let handle =
     String(storage.lastYouFomoHandle || "").trim() ||
-    String(storage.lastDeployFomoHandle || "").trim();
+    String(storage.lastDeployFomoHandle || "").trim() ||
+    String(beforeScan.lastYouFomoHandle || "").trim() ||
+    String(beforeScan.lastDeployFomoHandle || "").trim();
   if (handle) return { handle, storage };
 
   if (storage.fomoLoggedIn !== true) return { handle: "", storage };

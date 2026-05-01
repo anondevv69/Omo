@@ -555,7 +555,8 @@ async function publish() {
         "fomoLoggedIn",
         "lastYouFomoHandle",
       ]);
-      if (r.fomoLoggedIn === true) {
+      /** Only skip restoring when explicitly logged out — tabs that never saw `fomo-auth` yet still have `fomoLoggedIn` undefined. */
+      if (r.fomoLoggedIn !== false) {
         const h = String(r.lastYouFomoHandle || "").trim();
         if (h) loggedInFomoHandle = h;
       }
@@ -613,6 +614,22 @@ async function publish() {
     lastYouEvmForStorage = primaryWallet(profileDisplayEvm());
   }
 
+  let prevSnap = { fomoLoggedIn: undefined, lastYouFomoHandle: "", lastDeployFomoHandle: "" };
+  try {
+    prevSnap = await chrome.storage.local.get([
+      "fomoLoggedIn",
+      "lastYouFomoHandle",
+      "lastDeployFomoHandle",
+    ]);
+  } catch {
+    /* ignore */
+  }
+  const loggedOut = prevSnap.fomoLoggedIn === false;
+  const prevYouH = loggedOut ? "" : String(prevSnap.lastYouFomoHandle || "").trim();
+  const prevDepH = loggedOut ? "" : String(prevSnap.lastDeployFomoHandle || "").trim();
+  const nextYouHandle = (loggedInFomoHandle || "").trim() || prevYouH;
+  const nextDepH = (lastDeployFomoHandle || "").trim() || prevDepH;
+
   await chrome.storage.local.set({
     lastScanAt: Date.now(),
     lastSolanaAddresses: solana,
@@ -624,8 +641,8 @@ async function publish() {
     lastProfileEvm: primaryWallet(profileDisplayEvm()),
     lastYouSolana: lastYouSolForStorage,
     lastYouEvm: lastYouEvmForStorage,
-    lastYouFomoHandle: loggedInFomoHandle || "",
-    lastDeployFomoHandle: lastDeployFomoHandle || "",
+    lastYouFomoHandle: nextYouHandle,
+    lastDeployFomoHandle: nextDepH,
   });
 }
 
