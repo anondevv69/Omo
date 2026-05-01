@@ -105,6 +105,8 @@
     if (!id) return null;
     const profileHandle =
       (typeof ro.profileHandle === "string" && ro.profileHandle.trim()) ||
+      (typeof ro.userHandle === "string" && ro.userHandle.trim()) ||
+      (typeof ro.displayName === "string" && ro.displayName.trim()) ||
       (typeof ro.handle === "string" && ro.handle.trim()) ||
       (typeof ro.username === "string" && ro.username.trim()) ||
       (typeof ro.userName === "string" && ro.userName.trim()) ||
@@ -148,6 +150,22 @@
           profileHandle: decodeURIComponent(byHandle[1]),
           isSelf: false,
         };
+      }
+
+      /**
+       * GET /v2/users/{uuid}/leaderboard — sidebar "Your rank" row (logged-in viewer only).
+       * Body uses userHandle / displayName, not profileHandle.
+       */
+      const leaderboardMatch =
+        path.match(/\/v2\/users\/([0-9a-f-]{36})\/leaderboard$/i) ||
+        path.match(/\/v3\/users\/([0-9a-f-]{36})\/leaderboard$/i) ||
+        path.match(/\/api\/v\d+\/users\/([0-9a-f-]{36})\/leaderboard$/i);
+      if (leaderboardMatch) {
+        const ro = data?.responseObject;
+        if (!ro || typeof ro !== "object") return null;
+        const ud = extractRoUserDetail(ro, leaderboardMatch[1]);
+        if (!ud) return null;
+        return { ...ud, isSelf: true };
       }
 
       if (!/\/users\/[0-9a-f-]{36}$/i.test(path)) return null;
