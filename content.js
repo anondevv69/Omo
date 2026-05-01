@@ -326,11 +326,18 @@ function applyUserDetailToBuckets(ud) {
     return;
   }
 
-  /** Non-profile: only trust viewer correlation or `isSelf` from inject (never "first detail"). */
-  const trustGlobal = shouldTrustUserDetailForLoggedInHandle(ud);
+  /**
+   * Non-profile pages (home, token, etc.): trust viewer correlation, `isSelf`, OR the first
+   * user-detail that has both id + profileHandle (nav/session fetch is always the logged-in user).
+   * We rehydrated loggedInFomoHandle already; if still empty, this first detail is safe to trust.
+   */
+  const hasHandle = typeof ud.profileHandle === "string" && ud.profileHandle.trim();
+  const trustGlobal =
+    shouldTrustUserDetailForLoggedInHandle(ud) ||
+    (hasHandle && !loggedInFomoHandle && ud.id && (ud.address || ud.evmAddress));
   if (trustGlobal) {
     addCanon(youListSol, youListEvm, youSeenSol, youSeenEvm, ud.address, ud.evmAddress);
-    if (typeof ud.profileHandle === "string" && ud.profileHandle.trim()) {
+    if (hasHandle) {
       loggedInFomoHandle = ud.profileHandle.trim();
     }
   }

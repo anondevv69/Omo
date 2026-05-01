@@ -305,19 +305,27 @@ prepareBtn.addEventListener("click", async () => {
   }
 
   prepareBtn.disabled = true;
-  showStatus("Syncing FOMO profile…", false);
+  showStatus("Verifying FOMO account…", false);
 
   const { handle: fomoHandle, storage } = await resolveFomoHandleForDeploy();
   const loggedInBadge = storage.fomoLoggedIn === true;
+
+  /** Hard gate: cannot deploy without identifying the logged-in user. */
+  if (!fomoHandle) {
+    headerError = true;
+    renderHeaderBadge(loggedInBadge);
+    prepareBtn.disabled = false;
+    showStatus(
+      "Cannot deploy: FOMO account not identified. Open fomo.family (any page), ensure you're logged in, then tap Refresh and try again.",
+      true
+    );
+    return;
+  }
+
   const base = RELAY_ORIGIN.replace(/\/$/, "");
 
-  const deployHint =
-    loggedInBadge && !fomoHandle
-      ? "No FOMO @handle for metadata — open your profile on fomo.family and tap Refresh, then deploy again. "
-      : "";
-
   showStatus(
-    `${deployHint}Deploying… (instant when fomo mint pool has keys; otherwise you’ll see pool-empty — relay fills in background)`
+    "Deploying… (instant when fomo mint pool has keys; otherwise you’ll see pool-empty — relay fills in background)"
   );
 
   const controller = new AbortController();

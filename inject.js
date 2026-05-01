@@ -58,6 +58,7 @@
     return (
       url.includes("prod-api.fomo.family") ||
       url.includes("api.fomo.family") ||
+      url.includes("fomo.family") ||
       (url.includes("solana-provider") && url.includes("fomo.family"))
     );
   }
