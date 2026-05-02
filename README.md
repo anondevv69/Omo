@@ -39,7 +39,7 @@ The popup has two sections:
 
 | Section | What it shows |
 |--------|----------------|
-| **You (logged in)** | Your Solana and EVM addresses sniffed from FOMO’s APIs for *your* session. |
+| **You (logged in)** | Your **@handle**, **deploy stats** (followers, trades/swaps, avg hold time vs relay gates when enforced), and Solana / EVM addresses from FOMO’s APIs for *your* session. |
 | **This profile** | Only when you’re viewing **someone else’s** profile URL (`/profile/…`). Shows that profile’s wallets. |
 
 Navigating between pages usually updates storage automatically; if something looks stale, open the popup and tap **Refresh**.
@@ -68,8 +68,7 @@ Your choice is remembered for next time (stored in the extension).
 
 ### Base (Clanker) only — reward wallet
 
-For **Base · Clanker**, you must provide a **Base (EVM) `0x…` address** for **creator rewards** (the relay splits rewards per its settings — e.g. majority to you, small interface fee).  
-Omo **prefills** this from your **EVM wallet** sniffed from FOMO when possible; you can paste a different `0x` address if needed.
+For **Base · Clanker**, **creator rewards and fee shares** use your **FOMO-linked EVM `0x…` wallet** (the same address shown under **You (logged in)**). The popup shows it **read-only** — you can’t change it there; the relay applies its reward split (e.g. majority to you, small interface fee) to that address.
 
 ### Metadata
 
