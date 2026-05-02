@@ -290,6 +290,24 @@
         resize: vertical;
         min-height: 52px;
       }
+      select {
+        width: 100%;
+        box-sizing: border-box;
+        background: #1a1d24;
+        border: 1px solid var(--border);
+        border-radius: 6px;
+        color: var(--fg);
+        padding: 8px 10px;
+        font: inherit;
+        min-height: 36px;
+        cursor: pointer;
+      }
+      .base-reward-row {
+        margin-top: 10px;
+      }
+      .base-reward-row[hidden] {
+        display: none !important;
+      }
       .hint {
         font-size: 11px;
         color: var(--muted);
@@ -390,6 +408,27 @@
       <summary>Deploy token</summary>
       <div class="fold-you-inner">
         <p class="hint">Omo uses cashback — fees always go back to traders.</p>
+
+        <label for="deployTarget">Deploy on</label>
+        <select id="deployTarget" aria-label="Deploy target chain">
+          <option value="pump">Solana · Pump</option>
+          <option value="clanker">Base · Clanker</option>
+        </select>
+
+        <div id="baseRewardRow" class="base-reward-row" hidden>
+          <label for="baseRewardWallet">Base wallet for rewards <span class="optional">(0x…)</span></label>
+          <input
+            id="baseRewardWallet"
+            type="text"
+            spellcheck="false"
+            autocomplete="off"
+            placeholder="Filled from your FOMO EVM wallet when available"
+            maxlength="42"
+          />
+          <p class="hint" id="baseRewardHint">
+            Creator rewards route here (default 98%); interface fee uses the relay wallet unless BASE_FEE_RECIPIENT_ADDRESS is set on the server.
+          </p>
+        </div>
 
         <div class="section-title">Create coin</div>
         <div class="deploy-field-row">

@@ -13,6 +13,9 @@ const twitterEl = document.getElementById("twitter");
 const telegramEl = document.getElementById("telegram");
 const statusEl = document.getElementById("status");
 const prepareBtn = document.getElementById("prepare");
+const deployTargetEl = document.getElementById("deployTarget");
+const baseRewardRowEl = document.getElementById("baseRewardRow");
+const baseRewardWalletEl = document.getElementById("baseRewardWallet");
 const profileViewingLineEl = document.getElementById("profileViewingLine");
 const youAccountLineEl = document.getElementById("youAccountLine");
 const foreignProfileSectionEl = document.getElementById("foreignProfileSection");
@@ -77,7 +80,9 @@ function isSafeDeployReferenceUrl(raw) {
     if (url.hostname === "pump.fun" && url.pathname.startsWith("/coin/")) return true;
     const okFomo =
       url.hostname === "fomo.family" || url.hostname === "www.fomo.family";
-    return okFomo && url.pathname.startsWith("/tokens/solana/");
+    if (okFomo && url.pathname.startsWith("/tokens/solana/")) return true;
+    if (url.hostname === "basescan.org" && url.pathname.startsWith("/token/")) return true;
+    return false;
   } catch {
     return false;
   }
@@ -280,6 +285,11 @@ function renderList(el, label, addrs) {
       : `<strong>${label}:</strong> ${addrs.map((a) => `<span>${a}</span>`).join(" · ")}`;
 }
 
+function syncDeployTargetUi() {
+  const clanker = deployTargetEl?.value === "clanker";
+  if (baseRewardRowEl) baseRewardRowEl.hidden = !clanker;
+}
+
 async function refreshFromStorage() {
   const session = await chrome.storage.local.get([
     "lastScanAt",
@@ -353,7 +363,40 @@ async function refreshFromStorage() {
   );
 
   renderHeaderBadge(loggedIn);
+
+  try {
+    const pref = await chrome.storage.local.get(["omoDeployTarget"]);
+    const dt = pref.omoDeployTarget === "clanker" ? "clanker" : "pump";
+    if (deployTargetEl) deployTargetEl.value = dt;
+    syncDeployTargetUi();
+    try {
+      const evmStore = await chrome.storage.local.get(["lastYouEvm"]);
+      const first =
+        Array.isArray(evmStore.lastYouEvm) && evmStore.lastYouEvm.length
+          ? String(evmStore.lastYouEvm[0] || "").trim()
+          : "";
+      if (
+        baseRewardWalletEl &&
+        first &&
+        /^0x[a-fA-F0-9]{40}$/i.test(first) &&
+        !String(baseRewardWalletEl.value || "").trim()
+      ) {
+        baseRewardWalletEl.value = first;
+      }
+    } catch {
+      /* ignore */
+    }
+  } catch {
+    /* ignore */
+  }
 }
+
+deployTargetEl?.addEventListener("change", () => {
+  syncDeployTargetUi();
+  void chrome.storage.local.set({
+    omoDeployTarget: deployTargetEl.value === "clanker" ? "clanker" : "pump",
+  });
+});
 
 document.getElementById("rescan").addEventListener("click", async () => {
   const tabId = await findFomoTabId();
@@ -440,8 +483,33 @@ prepareBtn.addEventListener("click", async () => {
 
   const base = RELAY_ORIGIN.replace(/\/$/, "");
 
+  const deployTarget = deployTargetEl?.value === "clanker" ? "clanker" : "pump";
+
+  let rewardRecipient = "";
+  if (deployTarget === "clanker") {
+    rewardRecipient = String(baseRewardWalletEl?.value || "").trim();
+    if (!rewardRecipient) {
+      const evmStore = await chrome.storage.local.get(["lastYouEvm"]);
+      const first =
+        Array.isArray(evmStore.lastYouEvm) && evmStore.lastYouEvm.length
+          ? String(evmStore.lastYouEvm[0] || "").trim()
+          : "";
+      rewardRecipient = first;
+    }
+    if (!/^0x[a-fA-F0-9]{40}$/i.test(rewardRecipient)) {
+      prepareBtn.disabled = false;
+      showStatus(
+        "Base (Clanker) needs a valid 0x wallet for creator rewards. Paste your Base address above, or use fomo.family until Omo picks up your EVM wallet, then Refresh.",
+        true
+      );
+      return;
+    }
+  }
+
   showStatus(
-    "Deploying… (instant when the mint pool has keys; otherwise you’ll see pool-empty — relay fills in background)"
+    deployTarget === "clanker"
+      ? "Deploying on Base (Clanker)…"
+      : "Deploying… (instant when the mint pool has keys; otherwise you’ll see pool-empty — relay fills in background)"
   );
 
   const controller = new AbortController();
@@ -470,6 +538,10 @@ prepareBtn.addEventListener("click", async () => {
       twitter,
       telegram,
       fomoUsername: fomoHandle,
+      deployTarget,
+      ...(deployTarget === "clanker" && rewardRecipient
+        ? { rewardRecipient }
+        : {}),
       ...(Object.keys(deployMetrics).length ? { deployMetrics } : {}),
     };
     const res = await fetch(`${base}/api/deploy/prepare`, {
@@ -482,6 +554,29 @@ prepareBtn.addEventListener("click", async () => {
     if (!res.ok) {
       headerError = true;
       renderHeaderBadge(loggedInBadge);
+      if (data.code === "REWARD_RECIPIENT_REQUIRED") {
+        showStatus(
+          typeof data.error === "string"
+            ? data.error
+            : "rewardRecipient required — add your 0x Base wallet for Clanker rewards.",
+          true
+        );
+        return;
+      }
+      if (data.code === "BASE_DEPLOY_NOT_CONFIGURED") {
+        showStatus(
+          [
+            "Base (Clanker) deploy isn’t configured on the relay yet.",
+            "Set BASE_DEPLOY_PRIVATE_KEY (0x + 32-byte hex) and BASE_RPC_URL on the server, then redeploy the API.",
+            "",
+            typeof data.error === "string" ? data.error : "",
+          ]
+            .filter(Boolean)
+            .join("\n"),
+          true
+        );
+        return;
+      }
       if (data.code === "VANITY_POOL_EMPTY") {
         showStatus(
           [
@@ -596,15 +691,19 @@ prepareBtn.addEventListener("click", async () => {
     }
     headerError = false;
     renderHeaderBadge(loggedInBadge);
+    const isClanker = data.deployTarget === "clanker" || data.chain === "base";
+    const mintEx = String(data.mintExplorerUrl || "").trim();
     const mint = data.mintAddress || "";
     const fomoLink = (
       data.fomoFamilyUrl ||
-      (mint ? `https://fomo.family/tokens/solana/${mint}` : "")
+      (mint && !isClanker ? `https://fomo.family/tokens/solana/${mint}` : "")
     ).trim();
-    if (fomoLink) {
+    if (isClanker && mintEx) {
+      showDeployResultLink(mintEx, "Deployed on Base (Clanker):");
+    } else if (fomoLink) {
       showDeployResultLink(fomoLink);
     } else {
-      showStatus("Deployed — no FOMO URL in response.", false);
+      showStatus("Deployed — no token link in response.", false);
     }
   } catch (e) {
     headerError = true;

@@ -4,7 +4,7 @@
   <img src="icons/icon128.png" alt="Omo" width="128" height="128">
 </p>
 
-Omo reads wallet addresses from **[fomo.family](https://fomo.family)** while you browse and can prepare **Pump.fun** token deploys through a relay server.
+Omo reads wallet addresses from **[fomo.family](https://fomo.family)** while you browse and can deploy tokens through a **relay**: either **Solana (Pump.fun)** or **Base (Clanker)** — your choice in the popup.
 
 ---
 
@@ -48,12 +48,32 @@ Navigating between pages usually updates storage automatically; if something loo
 
 ## Deploying a token
 
+### Choose chain: Solana (Pump) or Base (Clanker)
+
+In **Deploy token**, use **Deploy on**:
+
+| Option | Chain | What happens |
+|--------|--------|----------------|
+| **Solana · Pump** *(default)* | Solana | Pump.fun–style deploy via the relay; mint on Solana; links point to **fomo.family** Solana token URLs / Solscan as returned by the relay. |
+| **Base · Clanker** | Base | Clanker v4 deploy on **Base**; you’ll get **Basescan** links. The relay pays gas from its Base wallet. |
+
+Your choice is remembered for next time (stored in the extension).
+
+### Fields (both modes)
+
 1. Stay logged in on **fomo.family** and confirm **You (logged in)** shows your account.
 2. Open Omo → expand **Deploy token**.
-3. Fill **Coin name** and **Ticker** (required). Optionally add description, image URL, and **social links** (website, X, Telegram).
-4. Click **Deploy**.
+3. Pick **Solana · Pump** or **Base · Clanker**.
+4. Fill **Coin name** and **Ticker** (required). Optionally add **description**, **image URL**, and **social links** (website, X, Telegram).
 
-Deploy goes through the **relay** configured in this build. The relay pays deployment fees and signs on your behalf; metadata can include **Deployed on Omo** and your FOMO profile link.
+### Base (Clanker) only — reward wallet
+
+For **Base · Clanker**, you must provide a **Base (EVM) `0x…` address** for **creator rewards** (the relay splits rewards per its settings — e.g. majority to you, small interface fee).  
+Omo **prefills** this from your **EVM wallet** sniffed from FOMO when possible; you can paste a different `0x` address if needed.
+
+### Metadata
+
+Deploy goes through the **relay** configured in this build. The relay signs on your behalf. Token metadata can include **Deployed on Omo** and your **FOMO profile link**, plus your optional description and social links — same idea on **Solana** and **Base**, with chain-appropriate metadata formats.
 
 ---
 
@@ -79,13 +99,15 @@ If deploy fails with an eligibility message, your stats may still be loading —
 
 ### Cooldowns
 
-| Limit | Value |
-|-------|--------|
-| **Per account** — wait between deploys for the same user | **24 hours** |
-| **Same ticker** — wait before deploying that symbol again | **24 hours**; you may get a link to the **original** token instead |
+Cooldowns apply **per chain**: you can deploy on **Solana** and on **Base** according to the relay rules (same ticker may exist on both chains separately).
+
+| Limit | Typical behavior |
+|-------|------------------|
+| **Per account** | Wait between deploys for the same user *(often **24 hours** per chain)* |
+| **Same ticker** | Wait before reusing that symbol on **that chain** *(often **24 hours**)*; duplicates may show a link to the **original** token |
 
 ---
 
 ## Credits
 
-**made by rayblancoeth &lt;3**
+**made by rayblancoeth <3**
