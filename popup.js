@@ -81,7 +81,13 @@ function isSafeDeployReferenceUrl(raw) {
     if (url.hostname === "pump.fun" && url.pathname.startsWith("/coin/")) return true;
     const okFomo =
       url.hostname === "fomo.family" || url.hostname === "www.fomo.family";
-    if (okFomo && url.pathname.startsWith("/tokens/solana/")) return true;
+    if (
+      okFomo &&
+      (url.pathname.startsWith("/tokens/solana/") ||
+        url.pathname.startsWith("/tokens/base/"))
+    ) {
+      return true;
+    }
     if (url.hostname === "basescan.org" && url.pathname.startsWith("/token/")) return true;
     return false;
   } catch {
@@ -831,12 +837,18 @@ prepareBtn.addEventListener("click", async () => {
     renderHeaderBadge(loggedInBadge);
     const isClanker = data.deployTarget === "clanker" || data.chain === "base";
     const mintEx = String(data.mintExplorerUrl || "").trim();
-    const mint = data.mintAddress || "";
+    const mint = String(data.mintAddress || data.tokenAddress || "").trim();
     const fomoLink = (
-      data.fomoFamilyUrl ||
-      (mint && !isClanker ? `https://fomo.family/tokens/solana/${mint}` : "")
+      String(data.fomoFamilyUrl || "").trim() ||
+      (mint && !isClanker ? `https://fomo.family/tokens/solana/${mint}` : "") ||
+      (mint && isClanker ? `https://fomo.family/tokens/base/${mint}` : "")
     ).trim();
-    if (isClanker && mintEx) {
+    if (fomoLink && isSafeDeployReferenceUrl(fomoLink)) {
+      showDeployResultLink(
+        fomoLink,
+        isClanker ? "Deployed on Base (Clanker):" : ""
+      );
+    } else if (isClanker && mintEx && isSafeDeployReferenceUrl(mintEx)) {
       showDeployResultLink(mintEx, "Deployed on Base (Clanker):");
     } else if (fomoLink) {
       showDeployResultLink(fomoLink);

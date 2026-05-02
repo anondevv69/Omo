@@ -450,15 +450,34 @@
     return { solana, evm };
   }
 
-  /** Leaderboard often returns 304 with no body — Omo never sees wallets. Force full JSON. */
-  function sniffArgsWithLeaderboardNoStore(args) {
+  /**
+   * Cached FOMO API responses often come back as **304** with **no body**. Our fetch hook
+   * needs JSON (`averageHoldTimeSeconds`, etc.) — `clone.json()` then fails silently.
+   * Force `cache: "no-store"` so we always get **200 + body** for these GETs.
+   */
+  function sniffArgsForceFreshJsonBody(args) {
     const req = args[0];
     const init = args[1];
     const urlStr = typeof req === "string" ? req : req?.url || "";
     if (!shouldSniffUrl(urlStr)) return args;
     try {
+      let method = "GET";
+      if (typeof Request !== "undefined" && req instanceof Request) {
+        method = String(req.method || "GET").toUpperCase();
+      } else if (typeof init === "object" && init !== null && typeof init.method === "string") {
+        method = init.method.toUpperCase();
+      }
+      if (method !== "GET") return args;
+
       const pu = new URL(urlStr, location.href);
-      if (!/\/users\/[0-9a-f-]{36}\/leaderboard$/i.test(pu.pathname)) return args;
+      const p = pu.pathname || "";
+      const isLeaderboard = /\/users\/[0-9a-f-]{36}\/leaderboard$/i.test(p);
+      /** GET /v2/users/{uuid} — user row incl. averageHoldTimeSeconds (often 304 when cached). */
+      const isBareUserById =
+        /\/v\d+\/users\/[0-9a-f-]{36}$/i.test(p) ||
+        /\/api\/v\d+\/users\/[0-9a-f-]{36}$/i.test(p);
+      if (!isLeaderboard && !isBareUserById) return args;
+
       const nextInit = {
         ...(typeof init === "object" && init !== null ? init : {}),
         cache: "no-store",
@@ -475,7 +494,7 @@
 
   const origFetch = window.fetch;
   window.fetch = async function (...args) {
-    args = sniffArgsWithLeaderboardNoStore(args);
+    args = sniffArgsForceFreshJsonBody(args);
     const res = await origFetch.apply(this, args);
     try {
       const req = args[0];

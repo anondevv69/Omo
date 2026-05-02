@@ -87,10 +87,30 @@ async function maybePersistDeployMetrics(d) {
     ownerRaw = d.userDetail.profileHandle;
   }
   const owner = normalizeHandleForDeployMetrics(ownerRaw);
-  const you = normalizeHandleForDeployMetrics(loggedInFomoHandle);
+  let you = normalizeHandleForDeployMetrics(loggedInFomoHandle);
+  if (!you) {
+    try {
+      const r = await chrome.storage.local.get(["lastYouFomoHandle"]);
+      you = normalizeHandleForDeployMetrics(r.lastYouFomoHandle);
+    } catch {
+      /* ignore */
+    }
+  }
   if (!owner || !you || owner !== you) return;
+
+  let merged = { ...d.deployMetrics };
+  try {
+    const prev = await chrome.storage.local.get(["lastYouDeployMetrics"]);
+    const p = prev.lastYouDeployMetrics;
+    if (p && typeof p === "object") {
+      merged = { ...p, ...merged };
+    }
+  } catch {
+    /* ignore */
+  }
+
   await chrome.storage.local.set({
-    lastYouDeployMetrics: d.deployMetrics,
+    lastYouDeployMetrics: merged,
     lastYouDeployMetricsAt: Date.now(),
   });
 }

@@ -55,7 +55,7 @@ In **Deploy token**, use **Deploy on**:
 | Option | Chain | What happens |
 |--------|--------|----------------|
 | **Solana · Pump** *(default)* | Solana | Pump.fun–style deploy via the relay; mint on Solana; links point to **fomo.family** Solana token URLs / Solscan as returned by the relay. |
-| **Base · Clanker** | Base | Clanker v4 deploy on **Base**; you’ll get **Basescan** links. The relay pays gas from its Base wallet. |
+| **Base · Clanker** | Base | Clanker v4 deploy on **Base**; success shows **`fomo.family/tokens/base/0x…`** (and Basescan URLs in the relay payload). The relay pays gas from its Base wallet. |
 
 Your choice is remembered for next time (stored in the extension).
 
