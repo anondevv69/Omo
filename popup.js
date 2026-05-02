@@ -15,7 +15,8 @@ const statusEl = document.getElementById("status");
 const prepareBtn = document.getElementById("prepare");
 const deployTargetEl = document.getElementById("deployTarget");
 const baseRewardRowEl = document.getElementById("baseRewardRow");
-const baseRewardWalletEl = document.getElementById("baseRewardWallet");
+const baseRewardDisplayEl = document.getElementById("baseRewardDisplay");
+const foldYouLoggedInEl = document.getElementById("foldYouLoggedIn");
 const profileViewingLineEl = document.getElementById("profileViewingLine");
 const youAccountLineEl = document.getElementById("youAccountLine");
 const foreignProfileSectionEl = document.getElementById("foreignProfileSection");
@@ -290,6 +291,184 @@ function syncDeployTargetUi() {
   if (baseRewardRowEl) baseRewardRowEl.hidden = !clanker;
 }
 
+function setBaseRewardDisplayFromEvm(first) {
+  if (!baseRewardDisplayEl) return;
+  const t = String(first || "").trim();
+  if (t && /^0x[a-fA-F0-9]{40}$/i.test(t)) {
+    baseRewardDisplayEl.textContent = t;
+    baseRewardDisplayEl.classList.remove("is-placeholder");
+    return;
+  }
+  baseRewardDisplayEl.textContent =
+    "Waiting for your EVM wallet from fomo.family — open the site, then tap Refresh.";
+  baseRewardDisplayEl.classList.add("is-placeholder");
+}
+
+async function getClankerRewardRecipientFromStorage() {
+  const evmStore = await chrome.storage.local.get(["lastYouEvm"]);
+  const first =
+    Array.isArray(evmStore.lastYouEvm) && evmStore.lastYouEvm.length
+      ? String(evmStore.lastYouEvm[0] || "").trim()
+      : "";
+  return first;
+}
+
+async function fetchRelayDeployInfo() {
+  try {
+    const base = RELAY_ORIGIN.replace(/\/$/, "");
+    const res = await fetch(`${base}/api/deploy/info`, {
+      method: "GET",
+      cache: "no-store",
+    });
+    if (!res.ok) return null;
+    return await res.json();
+  } catch {
+    return null;
+  }
+}
+
+function formatStatNumber(n) {
+  if (typeof n !== "number" || !Number.isFinite(n)) return "—";
+  return Math.round(n).toLocaleString();
+}
+
+/**
+ * Renders Followers / Trades / Avg hold vs relay gates (GET /api/deploy/info).
+ * Checkmarks when that stat meets its minimum (gates apply only when all three mins are set on relay).
+ */
+async function renderDeployGateMetrics(loggedIn) {
+  const container = document.getElementById("deployGateMetrics");
+  if (!container) return;
+
+  container.replaceChildren();
+
+  if (!loggedIn) {
+    container.hidden = true;
+    return;
+  }
+
+  container.hidden = false;
+
+  const store = await chrome.storage.local.get(["lastYouDeployMetrics"]);
+  const raw = store.lastYouDeployMetrics;
+  const m = raw && typeof raw === "object" ? raw : {};
+
+  const followers =
+    typeof m.followers === "number" && Number.isFinite(m.followers) ? m.followers : null;
+  const swaps = typeof m.swaps === "number" && Number.isFinite(m.swaps) ? m.swaps : null;
+  const hold =
+    typeof m.avgHoldSeconds === "number" && Number.isFinite(m.avgHoldSeconds)
+      ? m.avgHoldSeconds
+      : null;
+
+  const info = await fetchRelayDeployInfo();
+  const dg =
+    info?.deployGates && typeof info.deployGates === "object" ? info.deployGates : {};
+
+  const minF = Math.max(0, Number(dg.minFollowers) || 0);
+  const minS = Math.max(0, Number(dg.minSwaps) || 0);
+  const minH = Math.max(0, Number(dg.minAvgHoldSeconds) || 0);
+  /** Matches relay: eligibility only when all three mins are positive. */
+  const gatesEnforced = minF > 0 && minS > 0 && minH > 0;
+
+  const title = document.createElement("div");
+  title.className = "dgm-title";
+  title.textContent = gatesEnforced
+    ? "Deploy stats (meet any threshold)"
+    : "Deploy stats";
+  container.appendChild(title);
+
+  function appendRow(label, value, minVal, formatVal, formatMin) {
+    const row = document.createElement("div");
+    row.className = "dgm-row";
+
+    const lab = document.createElement("span");
+    lab.className = "dgm-label";
+    lab.textContent = label;
+
+    const valEl = document.createElement("span");
+    valEl.className = "dgm-val";
+    valEl.textContent = value == null ? "—" : formatVal(value);
+
+    row.appendChild(lab);
+    row.appendChild(valEl);
+
+    if (gatesEnforced && minVal > 0) {
+      const minEl = document.createElement("span");
+      minEl.className = "dgm-min";
+      minEl.textContent = `min ${formatMin(minVal)}`;
+
+      const ok = value != null && value >= minVal;
+      const mark = document.createElement("span");
+      mark.className = ok ? "dgm-mark dgm-mark-yes" : "dgm-mark dgm-mark-no";
+      mark.textContent = ok ? "✓" : "";
+      mark.setAttribute("aria-label", ok ? "Meets this gate" : "Below this gate");
+
+      row.appendChild(minEl);
+      row.appendChild(mark);
+    } else {
+      const pad = document.createElement("span");
+      pad.className = "dgm-min";
+      pad.textContent = "";
+      const mark = document.createElement("span");
+      mark.className = "dgm-mark-no";
+      mark.textContent = "";
+      row.appendChild(pad);
+      row.appendChild(mark);
+    }
+
+    container.appendChild(row);
+  }
+
+  appendRow("Followers", followers, minF, formatStatNumber, formatStatNumber);
+  appendRow("Trades / swaps", swaps, minS, formatStatNumber, formatStatNumber);
+  appendRow(
+    "Avg hold time",
+    hold,
+    minH,
+    formatHoldRequirement,
+    formatHoldRequirement
+  );
+
+  if (followers == null && swaps == null && hold == null) {
+    const nodata = document.createElement("div");
+    nodata.className = "dgm-nodata";
+    nodata.textContent =
+      "No stats yet — browse fomo.family (your profile or balances) until data loads, then tap Refresh.";
+    container.appendChild(nodata);
+  }
+
+  const sum = document.createElement("div");
+  sum.className = "dgm-summary";
+
+  if (!info) {
+    sum.textContent =
+      "Couldn’t load relay gate settings. Deploy may still work if gates are off.";
+    container.appendChild(sum);
+    return;
+  }
+
+  if (!gatesEnforced) {
+    sum.classList.add("dgm-summary-ok");
+    sum.textContent =
+      "Relay is not enforcing follower / trade / hold gates (or thresholds unset).";
+    container.appendChild(sum);
+    return;
+  }
+
+  const passF = followers != null && followers >= minF;
+  const passS = swaps != null && swaps >= minS;
+  const passH = hold != null && hold >= minH;
+  const eligible = passF || passS || passH;
+
+  sum.textContent = eligible
+    ? "You meet at least one deploy requirement."
+    : "You don’t meet any deploy requirement yet — refresh after FOMO loads your stats.";
+  sum.classList.toggle("dgm-summary-ok", eligible);
+  sum.classList.toggle("dgm-summary-warn", !eligible);
+  container.appendChild(sum);
+}
+
 async function refreshFromStorage() {
   const session = await chrome.storage.local.get([
     "lastScanAt",
@@ -364,31 +543,24 @@ async function refreshFromStorage() {
 
   renderHeaderBadge(loggedIn);
 
+  if (foldYouLoggedInEl) foldYouLoggedInEl.open = loggedIn;
+
   try {
     const pref = await chrome.storage.local.get(["omoDeployTarget"]);
     const dt = pref.omoDeployTarget === "clanker" ? "clanker" : "pump";
     if (deployTargetEl) deployTargetEl.value = dt;
     syncDeployTargetUi();
     try {
-      const evmStore = await chrome.storage.local.get(["lastYouEvm"]);
-      const first =
-        Array.isArray(evmStore.lastYouEvm) && evmStore.lastYouEvm.length
-          ? String(evmStore.lastYouEvm[0] || "").trim()
-          : "";
-      if (
-        baseRewardWalletEl &&
-        first &&
-        /^0x[a-fA-F0-9]{40}$/i.test(first) &&
-        !String(baseRewardWalletEl.value || "").trim()
-      ) {
-        baseRewardWalletEl.value = first;
-      }
+      const first = await getClankerRewardRecipientFromStorage();
+      setBaseRewardDisplayFromEvm(first);
     } catch {
       /* ignore */
     }
   } catch {
     /* ignore */
   }
+
+  await renderDeployGateMetrics(loggedIn);
 }
 
 deployTargetEl?.addEventListener("change", () => {
@@ -487,19 +659,11 @@ prepareBtn.addEventListener("click", async () => {
 
   let rewardRecipient = "";
   if (deployTarget === "clanker") {
-    rewardRecipient = String(baseRewardWalletEl?.value || "").trim();
-    if (!rewardRecipient) {
-      const evmStore = await chrome.storage.local.get(["lastYouEvm"]);
-      const first =
-        Array.isArray(evmStore.lastYouEvm) && evmStore.lastYouEvm.length
-          ? String(evmStore.lastYouEvm[0] || "").trim()
-          : "";
-      rewardRecipient = first;
-    }
+    rewardRecipient = await getClankerRewardRecipientFromStorage();
     if (!/^0x[a-fA-F0-9]{40}$/i.test(rewardRecipient)) {
       prepareBtn.disabled = false;
       showStatus(
-        "Base (Clanker) needs a valid 0x wallet for creator rewards. Paste your Base address above, or use fomo.family until Omo picks up your EVM wallet, then Refresh.",
+        "Base (Clanker) sends rewards to your FOMO EVM wallet. Open fomo.family until your wallet appears under You (logged in), then tap Refresh.",
         true
       );
       return;

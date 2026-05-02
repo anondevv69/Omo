@@ -257,6 +257,104 @@
         font-weight: 600;
         margin-right: 6px;
       }
+      .deploy-gate-metrics {
+        margin-top: 10px;
+        padding-top: 10px;
+        border-top: 1px solid var(--border);
+      }
+      .deploy-gate-metrics.deploy-gate-metrics--first {
+        margin-top: 4px;
+        padding-top: 8px;
+      }
+      .deploy-gate-metrics[hidden] {
+        display: none !important;
+      }
+      .dgm-title {
+        font-size: 10px;
+        font-weight: 600;
+        text-transform: uppercase;
+        letter-spacing: 0.04em;
+        color: var(--muted);
+        margin-bottom: 6px;
+      }
+      .dgm-nodata {
+        font-size: 11px;
+        color: var(--muted);
+        line-height: 1.45;
+        margin: 2px 0 10px;
+      }
+      .dgm-row {
+        display: grid;
+        grid-template-columns: 92px 1fr auto 16px;
+        gap: 6px;
+        align-items: baseline;
+        font-size: 11px;
+        line-height: 1.4;
+        margin-top: 5px;
+      }
+      .dgm-label {
+        color: var(--muted);
+        font-weight: 600;
+      }
+      .dgm-val {
+        font-family: ui-monospace, monospace;
+        color: var(--fg);
+        text-align: right;
+        word-break: normal;
+      }
+      .dgm-min {
+        color: var(--muted);
+        font-size: 10px;
+        white-space: nowrap;
+      }
+      .dgm-mark-yes {
+        color: #81c995;
+        font-weight: 700;
+        text-align: center;
+      }
+      .dgm-mark-no {
+        display: inline-block;
+        width: 16px;
+      }
+      .dgm-summary {
+        margin-top: 8px;
+        font-size: 11px;
+        line-height: 1.45;
+        color: var(--muted);
+      }
+      .dgm-summary.dgm-summary-ok {
+        color: #81c995;
+      }
+      .dgm-summary.dgm-summary-warn {
+        color: #fdd663;
+      }
+      .base-reward-label {
+        display: block;
+        font-size: 11px;
+        color: var(--muted);
+        margin-top: 10px;
+        margin-bottom: 4px;
+      }
+      .base-reward-display {
+        width: 100%;
+        box-sizing: border-box;
+        background: #1a1d24;
+        border: 1px solid var(--border);
+        border-radius: 6px;
+        color: var(--fg);
+        padding: 8px 10px;
+        font-family: ui-monospace, monospace;
+        font-size: 12px;
+        line-height: 1.35;
+        word-break: break-all;
+        user-select: all;
+        cursor: default;
+      }
+      .base-reward-display.is-placeholder {
+        color: var(--muted);
+        font-style: italic;
+        user-select: none;
+      }
       .login-gate {
         background: #2d1f14;
         border: 1px solid #a9582a;
@@ -388,10 +486,11 @@
     </div>
 
     <div id="app-root" class="locked">
-    <details class="fold-you">
+    <details class="fold-you" id="foldYouLoggedIn" open>
       <summary>You (logged in)</summary>
       <div class="fold-you-inner">
         <p id="youAccountLine" class="profile-viewing-line" hidden></p>
+        <div id="deployGateMetrics" class="deploy-gate-metrics deploy-gate-metrics--first" hidden aria-live="polite"></div>
         <div id="scanYouSol" class="scan-list"></div>
         <div id="scanYouEvm" class="scan-list"></div>
       </div>
@@ -407,7 +506,9 @@
     <details class="fold-you fold-deploy">
       <summary>Deploy token</summary>
       <div class="fold-you-inner">
-        <p class="hint">Omo uses cashback — fees always go back to traders.</p>
+        <p class="hint">
+          Creator rewards and fee shares go to <strong>your</strong> linked wallet from FOMO (see Base below). You can’t redirect them in the extension.
+        </p>
 
         <label for="deployTarget">Deploy on</label>
         <select id="deployTarget" aria-label="Deploy target chain">
@@ -416,17 +517,14 @@
         </select>
 
         <div id="baseRewardRow" class="base-reward-row" hidden>
-          <label for="baseRewardWallet">Base wallet for rewards <span class="optional">(0x…)</span></label>
-          <input
-            id="baseRewardWallet"
-            type="text"
-            spellcheck="false"
-            autocomplete="off"
-            placeholder="Filled from your FOMO EVM wallet when available"
-            maxlength="42"
-          />
+          <span class="base-reward-label">Rewards go to you (Base · Clanker)</span>
+          <div
+            id="baseRewardDisplay"
+            class="base-reward-display is-placeholder"
+            aria-live="polite"
+          ></div>
           <p class="hint" id="baseRewardHint">
-            Creator rewards route here (default 98%); interface fee uses the relay wallet unless BASE_FEE_RECIPIENT_ADDRESS is set on the server.
+            This address is your FOMO EVM wallet — creator rewards and fee shares are sent here. Interface fee routing follows your relay settings.
           </p>
         </div>
 
