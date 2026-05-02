@@ -333,8 +333,20 @@ function formatStatNumber(n) {
 }
 
 /**
- * Renders Followers / Trades / Avg hold vs relay gates (GET /api/deploy/info).
- * Checkmarks when that stat meets its minimum (gates apply only when all three mins are set on relay).
+ * When the relay has not set all three gate env vars, we still show these targets in the UI
+ * (same numbers as production README / typical relay defaults).
+ */
+const DEPLOY_DISPLAY_DEFAULTS = {
+  minFollowers: 1000,
+  minSwaps: 100,
+  /** 48 hours */
+  minAvgHoldSeconds: 172800,
+};
+
+/**
+ * Renders Followers / Trades / Avg hold vs thresholds from GET /api/deploy/info, or vs
+ * {@link DEPLOY_DISPLAY_DEFAULTS} when the relay does not publish all three mins.
+ * Each row gets a ✓ when your stat meets that row’s minimum.
  */
 async function renderDeployGateMetrics(loggedIn) {
   const container = document.getElementById("deployGateMetrics");
@@ -368,14 +380,16 @@ async function renderDeployGateMetrics(loggedIn) {
   const minF = Math.max(0, Number(dg.minFollowers) || 0);
   const minS = Math.max(0, Number(dg.minSwaps) || 0);
   const minH = Math.max(0, Number(dg.minAvgHoldSeconds) || 0);
-  /** Matches relay: eligibility only when all three mins are positive. */
-  const gatesEnforced = minF > 0 && minS > 0 && minH > 0;
+  /** Matches relay eligibility: all three mins positive on server. */
+  const relayEnforcesAllThree = minF > 0 && minS > 0 && minH > 0;
+
+  const dispF = relayEnforcesAllThree ? minF : DEPLOY_DISPLAY_DEFAULTS.minFollowers;
+  const dispS = relayEnforcesAllThree ? minS : DEPLOY_DISPLAY_DEFAULTS.minSwaps;
+  const dispH = relayEnforcesAllThree ? minH : DEPLOY_DISPLAY_DEFAULTS.minAvgHoldSeconds;
 
   const title = document.createElement("div");
   title.className = "dgm-title";
-  title.textContent = gatesEnforced
-    ? "Deploy stats (meet any threshold)"
-    : "Deploy stats";
+  title.textContent = "Deploy stats";
   container.appendChild(title);
 
   function appendRow(label, value, minVal, formatVal, formatMin) {
@@ -393,39 +407,29 @@ async function renderDeployGateMetrics(loggedIn) {
     row.appendChild(lab);
     row.appendChild(valEl);
 
-    if (gatesEnforced && minVal > 0) {
-      const minEl = document.createElement("span");
-      minEl.className = "dgm-min";
-      minEl.textContent = `min ${formatMin(minVal)}`;
+    const minEl = document.createElement("span");
+    minEl.className = "dgm-min";
+    minEl.textContent =
+      minVal > 0 ? `min ${formatMin(minVal)}` : "";
 
-      const ok = value != null && value >= minVal;
-      const mark = document.createElement("span");
-      mark.className = ok ? "dgm-mark dgm-mark-yes" : "dgm-mark dgm-mark-no";
-      mark.textContent = ok ? "✓" : "";
-      mark.setAttribute("aria-label", ok ? "Meets this gate" : "Below this gate");
+    const ok = value != null && minVal > 0 && value >= minVal;
+    const mark = document.createElement("span");
+    mark.className = ok ? "dgm-mark dgm-mark-yes" : "dgm-mark dgm-mark-no";
+    mark.textContent = ok ? "✓" : "";
+    mark.setAttribute("aria-label", ok ? "Meets this threshold" : "Below this threshold");
 
-      row.appendChild(minEl);
-      row.appendChild(mark);
-    } else {
-      const pad = document.createElement("span");
-      pad.className = "dgm-min";
-      pad.textContent = "";
-      const mark = document.createElement("span");
-      mark.className = "dgm-mark-no";
-      mark.textContent = "";
-      row.appendChild(pad);
-      row.appendChild(mark);
-    }
+    row.appendChild(minEl);
+    row.appendChild(mark);
 
     container.appendChild(row);
   }
 
-  appendRow("Followers", followers, minF, formatStatNumber, formatStatNumber);
-  appendRow("Trades / swaps", swaps, minS, formatStatNumber, formatStatNumber);
+  appendRow("Followers", followers, dispF, formatStatNumber, formatStatNumber);
+  appendRow("Trades / swaps", swaps, dispS, formatStatNumber, formatStatNumber);
   appendRow(
     "Avg hold time",
     hold,
-    minH,
+    dispH,
     formatHoldRequirement,
     formatHoldRequirement
   );
@@ -437,36 +441,6 @@ async function renderDeployGateMetrics(loggedIn) {
       "No stats yet — browse fomo.family (your profile or balances) until data loads, then tap Refresh.";
     container.appendChild(nodata);
   }
-
-  const sum = document.createElement("div");
-  sum.className = "dgm-summary";
-
-  if (!info) {
-    sum.textContent =
-      "Couldn’t load relay gate settings. Deploy may still work if gates are off.";
-    container.appendChild(sum);
-    return;
-  }
-
-  if (!gatesEnforced) {
-    sum.classList.add("dgm-summary-ok");
-    sum.textContent =
-      "Relay is not enforcing follower / trade / hold gates (or thresholds unset).";
-    container.appendChild(sum);
-    return;
-  }
-
-  const passF = followers != null && followers >= minF;
-  const passS = swaps != null && swaps >= minS;
-  const passH = hold != null && hold >= minH;
-  const eligible = passF || passS || passH;
-
-  sum.textContent = eligible
-    ? "You meet at least one deploy requirement."
-    : "You don’t meet any deploy requirement yet — refresh after FOMO loads your stats.";
-  sum.classList.toggle("dgm-summary-ok", eligible);
-  sum.classList.toggle("dgm-summary-warn", !eligible);
-  container.appendChild(sum);
 }
 
 async function refreshFromStorage() {

@@ -59,6 +59,13 @@ In **Deploy token**, use **Deploy on**:
 
 Your choice is remembered for next time (stored in the extension).
 
+### Fees / rewards
+
+| Chain | Summary |
+|--------|---------|
+| **Solana · Pump** | Pump tokens use **cashback** to traders. |
+| **Base · Clanker** | **Fee rewards** go back to your **FOMO-linked EVM** wallet (shown read-only in the popup when you pick Base). You can’t redirect fees in the extension. |
+
 ### Fields (both modes)
 
 1. Stay logged in on **fomo.family** and confirm **You (logged in)** shows your account.
@@ -68,7 +75,7 @@ Your choice is remembered for next time (stored in the extension).
 
 ### Base (Clanker) only — reward wallet
 
-For **Base · Clanker**, **creator rewards and fee shares** use your **FOMO-linked EVM `0x…` wallet** (the same address shown under **You (logged in)**). The popup shows it **read-only** — you can’t change it there; the relay applies its reward split (e.g. majority to you, small interface fee) to that address.
+For **Base · Clanker**, **fee rewards** use your **FOMO-linked EVM `0x…` wallet** (the same address shown under **You (logged in)**). The popup shows it **read-only** — you can’t change it there; the relay applies its reward split (e.g. majority to you, small interface fee) to that address.
 
 ### Metadata
 
