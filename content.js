@@ -431,6 +431,14 @@ function viewerOwnsProfilePageUserDetail(ud) {
   );
 }
 
+/** True when FOMO’s `profileHandle` (or merged userHandle) is the same @ as the URL `/profile/:slug`. */
+function profileHandleMatchesUrlSlug(slug, ph) {
+  if (!slug || ph == null || typeof ph !== "string") return false;
+  const s = String(slug).trim().replace(/^@+/, "").toLowerCase();
+  const p = String(ph).trim().replace(/^@+/, "").toLowerCase();
+  return Boolean(s && p && s === p);
+}
+
 function applyUserDetailToBuckets(ud) {
   const slug = currentProfileSlug();
   const id = ud.id;
@@ -493,14 +501,21 @@ function applyUserDetailToBuckets(ud) {
 
     const ownerId = ownerUuidForProfileCanon();
     if (ownerId && id === ownerId) {
-      addCanon(
-        profileCanonListSol,
-        profileCanonListEvm,
-        profileCanonSeenSol,
-        profileCanonSeenEvm,
-        ud.address,
-        ud.evmAddress
-      );
+      /**
+       * UUID match alone is not enough: the wrong user object can still share a confused balances
+       * graph. Only write **This profile** wallets when `profileHandle` matches the URL slug — same
+       * bar as `…/userHandle/{slug}` (Sol + EVM from one trusted row).
+       */
+      if (profileHandleMatchesUrlSlug(slug, ud.profileHandle)) {
+        addCanon(
+          profileCanonListSol,
+          profileCanonListEvm,
+          profileCanonSeenSol,
+          profileCanonSeenEvm,
+          ud.address,
+          ud.evmAddress
+        );
+      }
       pendingUserDetail = null;
       return;
     }
