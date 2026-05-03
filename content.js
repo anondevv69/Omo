@@ -460,20 +460,15 @@ function applyUserDetailToBuckets(ud) {
       profileCanonSeenEvm.clear();
       profileCanonListSol.length = 0;
       profileCanonListEvm.length = 0;
-      /**
-       * FOMO `GET …/userHandle/{slug}` can return `activated: false` with Sol/EVM that do not match
-       * the session-linked wallets shown after login — skip writing those into “This profile”.
-       */
-      if (ud.activated !== false) {
-        addCanon(
-          profileCanonListSol,
-          profileCanonListEvm,
-          profileCanonSeenSol,
-          profileCanonSeenEvm,
-          ud.address,
-          ud.evmAddress
-        );
-      }
+      /** `userHandle/{slug}` row — trust Sol + EVM from this response (FOMO may still set `activated: false` for other reasons). */
+      addCanon(
+        profileCanonListSol,
+        profileCanonListEvm,
+        profileCanonSeenSol,
+        profileCanonSeenEvm,
+        ud.address,
+        ud.evmAddress
+      );
       if (
         typeof ph === "string" &&
         ph.trim() &&
@@ -493,7 +488,7 @@ function applyUserDetailToBuckets(ud) {
        * graph. Only write **This profile** wallets when `profileHandle` matches the URL slug — same
        * bar as `…/userHandle/{slug}` (Sol + EVM from one trusted row).
        */
-      if (profileHandleMatchesUrlSlug(slug, ud.profileHandle) && ud.activated !== false) {
+      if (profileHandleMatchesUrlSlug(slug, ud.profileHandle)) {
         addCanon(
           profileCanonListSol,
           profileCanonListEvm,
