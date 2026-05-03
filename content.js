@@ -456,10 +456,20 @@ function applyUserDetailToBuckets(ud) {
       ph &&
       String(ph).toLowerCase() === String(slug).toLowerCase()
     ) {
-      profileCanonSeenSol.clear();
-      profileCanonSeenEvm.clear();
-      profileCanonListSol.length = 0;
-      profileCanonListEvm.length = 0;
+      /**
+       * Only clear canon lists when we have valid replacement data.
+       * Prevents "—" EVM when 304 Not Modified returns body-less cached response
+       * or when API omits evmAddress temporarily.
+       */
+      const hasValidSol = typeof ud.address === "string" && ud.address.length >= 32;
+      const hasValidEvm = typeof ud.evmAddress === "string" && ud.evmAddress.startsWith("0x") && ud.evmAddress.length === 42;
+
+      if (hasValidSol || hasValidEvm) {
+        profileCanonSeenSol.clear();
+        profileCanonSeenEvm.clear();
+        profileCanonListSol.length = 0;
+        profileCanonListEvm.length = 0;
+      }
       /** `userHandle/{slug}` row — trust Sol + EVM from this response (FOMO may still set `activated: false` for other reasons). */
       addCanon(
         profileCanonListSol,
@@ -847,7 +857,7 @@ function profileDisplayEvm() {
    * Structured /balances EVM is often wrong on **someone else’s** profile (UUID mix-up) while Sol
    * still looks right — only trust structured EVM on your own profile row.
    */
-  if (fromBal?.evm?.length && !viewingSomeoneElse) return [...fromBal.evm];
+  if (fromBal?.evm?.length && (!viewingSomeoneElse || !profileCanonListEvm.length)) return [...fromBal.evm];
   if (slug) return [];
   return [...profListEvm];
 }
