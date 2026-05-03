@@ -355,6 +355,63 @@
         font-style: italic;
         user-select: none;
       }
+      .image-upload-row {
+        margin-top: 6px;
+      }
+      .image-upload-controls {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 8px;
+        align-items: center;
+        margin-top: 4px;
+      }
+      .image-upload-controls input[type="file"] {
+        font-size: 11px;
+        max-width: 100%;
+      }
+      .image-upload-controls button.secondary {
+        margin-top: 0;
+        width: auto;
+        padding: 8px 12px;
+      }
+      .recent-deploys-list {
+        display: flex;
+        flex-direction: column;
+        gap: 10px;
+      }
+      .recent-deploy-item {
+        border: 1px solid var(--border);
+        border-radius: 8px;
+        padding: 10px;
+        background: #14161c;
+      }
+      .recent-deploy-item .rd-title {
+        font-weight: 600;
+        font-size: 12px;
+        margin-bottom: 4px;
+      }
+      .recent-deploy-item .rd-meta {
+        font-size: 11px;
+        color: var(--muted);
+        margin-bottom: 8px;
+      }
+      .recent-deploy-actions {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 6px;
+        align-items: center;
+      }
+      .recent-deploy-actions a {
+        color: var(--accent);
+        font-size: 11px;
+        word-break: break-all;
+      }
+      .recent-deploy-actions button {
+        margin-top: 0;
+        width: auto;
+        padding: 6px 10px;
+        font-size: 11px;
+      }
       .login-gate {
         background: #2d1f14;
         border: 1px solid #a9582a;
@@ -547,6 +604,15 @@
         <label for="image">Image URL <span class="optional">(optional)</span></label>
         <input id="image" type="url" placeholder="https://… or ipfs://… (token artwork)" spellcheck="false" />
 
+        <div class="image-upload-row">
+          <label class="image-upload-label">Upload image <span class="optional">(Lighthouse IPFS via relay)</span></label>
+          <div class="image-upload-controls">
+            <input id="imageFile" type="file" accept="image/*" />
+            <button type="button" id="imageUploadBtn" class="secondary">Upload</button>
+          </div>
+          <p class="hint" id="imageUploadHint"></p>
+        </div>
+
         <details class="fold-social" open>
           <summary>Add social links <span class="optional">(optional)</span></summary>
           <div class="social-inner">
@@ -566,6 +632,16 @@
         </details>
 
         <button type="button" id="prepare">Deploy</button>
+      </div>
+    </details>
+
+    <details class="fold-you" id="recentDeploysFold">
+      <summary>Your recent deploys</summary>
+      <div class="fold-you-inner">
+        <p class="hint">
+          Saved in this browser after each successful deploy. Use <strong>Claim fees</strong> on Base when the relay has fees to sweep to your FOMO-linked wallet.
+        </p>
+        <div id="recentDeploysList" class="recent-deploys-list" aria-live="polite"></div>
       </div>
     </details>
     </div>

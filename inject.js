@@ -451,6 +451,33 @@
   }
 
   /**
+   * Viewer UUID from `/users/me` (and other `isSelf` API responses). Used to prefetch leaderboard
+   * JSON without relying on FOMO's SPA "leaderboard tab" routing.
+   * @type {string | null}
+   */
+  let viewerCanonicalUserId = null;
+
+  /** Dedupe: same leaderboard prefetch as opening the sidebar tab in the app. */
+  const prefetchedLeaderboardFor = new Set();
+
+  /**
+   * Triggers `GET …/users/{id}/leaderboard` with credentials — same payload as when the UI loads
+   * that tab. Goes through our wrapped `fetch` so responses are sniffed like normal page traffic.
+   */
+  function prefetchLeaderboardForViewer(userId) {
+    try {
+      const id = String(userId || "").trim().toLowerCase();
+      if (!/^[0-9a-f-]{36}$/.test(id)) return;
+      if (prefetchedLeaderboardFor.has(id)) return;
+      prefetchedLeaderboardFor.add(id);
+      const url = `https://prod-api.fomo.family/v2/users/${id}/leaderboard`;
+      void window.fetch(url, { credentials: "include", cache: "no-store" });
+    } catch (_) {
+      /* ignore */
+    }
+  }
+
+  /**
    * Cached FOMO API responses often come back as **304** with **no body**. Our fetch hook
    * needs JSON (`averageHoldTimeSeconds`, etc.) — `clone.json()` then fails silently.
    * Force `cache: "no-store"` so we always get **200 + body** for these GETs.
@@ -603,6 +630,25 @@
             !deployMetrics
           ) {
             return;
+          }
+
+          try {
+            const puPath = new URL(url, location.href).pathname || "";
+            if (userDetail?.isSelf === true && userDetail.id) {
+              viewerCanonicalUserId = String(userDetail.id).trim().toLowerCase();
+              prefetchLeaderboardForViewer(viewerCanonicalUserId);
+            } else if (
+              viewerCanonicalUserId &&
+              /\/v\d+\/users\/[0-9a-f-]{36}$/i.test(puPath)
+            ) {
+              const um = puPath.match(/\/([0-9a-f-]{36})$/i);
+              const pathId = um ? um[1].toLowerCase() : "";
+              if (pathId && pathId === viewerCanonicalUserId) {
+                prefetchLeaderboardForViewer(viewerCanonicalUserId);
+              }
+            }
+          } catch (_) {
+            /* ignore */
           }
 
           window.postMessage(

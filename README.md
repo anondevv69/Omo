@@ -73,6 +73,14 @@ Your choice is remembered for next time (stored in the extension).
 3. Pick **Solana · Pump** or **Base · Clanker**.
 4. Fill **Coin name** and **Ticker** (required). Optionally add **description**, **image URL**, and **social links** (website, X, Telegram).
 
+### Image upload (Lighthouse IPFS)
+
+Instead of pasting an image URL, use **Upload** next to the file picker. The extension sends the file to your relay’s **`POST /api/upload/image`** (multipart field `file`). The relay must have **`LIGHTHOUSE_API_KEY`** set — see [Lighthouse file upload](https://docs.lighthouse.storage/how-to/upload-data/file). On success, Omo fills **Image URL** with the HTTPS gateway link (`https://gateway.lighthouse.storage/ipfs/…`).
+
+### Your recent deploys
+
+After each successful deploy, Omo stores the token in **Your recent deploys** (this browser only). Open the section for links to **fomo.family** and, for **Base** tokens, **Claim fees** when accrued Clanker fees are available. The relay pays Base gas for the claim transaction; you must use the same FOMO-linked **0x** wallet as for deploy.
+
 ### Base (Clanker) only — reward wallet
 
 For **Base · Clanker**, **fee rewards** use your **FOMO-linked EVM `0x…` wallet** (the same address shown under **You (logged in)**). The popup shows it **read-only** — you can’t change it there; the relay applies its reward split (e.g. majority to you, small interface fee) to that address.

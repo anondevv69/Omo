@@ -23,9 +23,16 @@ const foreignProfileSectionEl = document.getElementById("foreignProfileSection")
 const loginGateEl = document.getElementById("login-gate");
 const appRootEl = document.getElementById("app-root");
 const headerStatusEl = document.getElementById("headerStatus");
+const imageFileEl = document.getElementById("imageFile");
+const imageUploadBtn = document.getElementById("imageUploadBtn");
+const imageUploadHintEl = document.getElementById("imageUploadHint");
+const recentDeploysListEl = document.getElementById("recentDeploysList");
 
 /** When true, header shows Error until a successful Refresh clears it. */
 let headerError = false;
+
+const OMO_RECENT_DEPLOYS_KEY = "omoRecentDeploys";
+const RECENT_DEPLOYS_MAX = 30;
 
 function renderHeaderBadge(loggedIn) {
   if (!headerStatusEl) return;
@@ -69,6 +76,151 @@ function formatHoldRequirement(sec) {
   }
   if (s >= 60) return `${Math.round(s / 60)} min`;
   return `${Math.round(s)}s`;
+}
+
+async function recordRecentDeploy({ name, symbol, data, isClanker, fomoLink }) {
+  try {
+    const mint = String(data.mintAddress || data.tokenAddress || "").trim();
+    if (!mint) return;
+    const fomo =
+      String(fomoLink || "").trim() ||
+      (isClanker
+        ? `https://fomo.family/tokens/base/${mint}`
+        : `https://fomo.family/tokens/solana/${mint}`);
+    const entry = {
+      at: Date.now(),
+      chain: isClanker ? "base" : "solana",
+      name: String(name || "").trim() || "—",
+      symbol: String(symbol || "").trim().toUpperCase() || "—",
+      address: mint,
+      fomoFamilyUrl: fomo,
+      mintExplorerUrl: String(data.mintExplorerUrl || "").trim(),
+    };
+    const prev = await chrome.storage.local.get([OMO_RECENT_DEPLOYS_KEY]);
+    const list = Array.isArray(prev[OMO_RECENT_DEPLOYS_KEY])
+      ? prev[OMO_RECENT_DEPLOYS_KEY]
+      : [];
+    const filtered = list.filter((x) => x && x.address !== entry.address);
+    const next = [entry, ...filtered].slice(0, RECENT_DEPLOYS_MAX);
+    await chrome.storage.local.set({ [OMO_RECENT_DEPLOYS_KEY]: next });
+  } catch {
+    /* ignore */
+  }
+}
+
+async function renderRecentDeploys() {
+  if (!recentDeploysListEl) return;
+  const prev = await chrome.storage.local.get([OMO_RECENT_DEPLOYS_KEY]);
+  const list = Array.isArray(prev[OMO_RECENT_DEPLOYS_KEY])
+    ? prev[OMO_RECENT_DEPLOYS_KEY]
+    : [];
+  recentDeploysListEl.replaceChildren();
+  if (!list.length) {
+    const p = document.createElement("p");
+    p.className = "hint";
+    p.textContent =
+      "No deploys recorded yet — they appear here after a successful deploy.";
+    recentDeploysListEl.appendChild(p);
+    return;
+  }
+  for (const row of list) {
+    if (!row || typeof row !== "object") continue;
+    const chain = row.chain === "base" ? "Base" : "Solana";
+    const sym = String(row.symbol || "—");
+    const nm = String(row.name || "");
+    const addr = String(row.address || "");
+    const fomoU = String(row.fomoFamilyUrl || "").trim();
+    const el = document.createElement("div");
+    el.className = "recent-deploy-item";
+    const title = document.createElement("div");
+    title.className = "rd-title";
+    title.textContent = `${nm} ($${sym}) · ${chain}`;
+    const meta = document.createElement("div");
+    meta.className = "rd-meta";
+    meta.textContent = addr || "";
+    const actions = document.createElement("div");
+    actions.className = "recent-deploy-actions";
+    if (fomoU) {
+      const a = document.createElement("a");
+      a.href = fomoU;
+      a.target = "_blank";
+      a.rel = "noopener noreferrer";
+      a.textContent = "Open on fomo.family";
+      actions.appendChild(a);
+    }
+    if (row.chain === "base" && addr) {
+      const b = document.createElement("button");
+      b.type = "button";
+      b.className = "secondary";
+      b.textContent = "Claim fees";
+      b.dataset.claimBase = addr;
+      actions.appendChild(b);
+    }
+    el.appendChild(title);
+    el.appendChild(meta);
+    el.appendChild(actions);
+    recentDeploysListEl.appendChild(el);
+  }
+}
+
+async function claimBaseFees(tokenAddress) {
+  const base = RELAY_ORIGIN.replace(/\/$/, "");
+  showStatus("Checking fees…", false);
+  const { handle } = await resolveFomoHandleForDeploy();
+  const rewardRecipient = await getClankerRewardRecipientFromStorage();
+  if (!handle) {
+    showStatus("Cannot claim — FOMO handle missing. Refresh on fomo.family.", true);
+    return;
+  }
+  if (!/^0x[a-fA-F0-9]{40}$/i.test(rewardRecipient)) {
+    showStatus("Cannot claim — Base wallet missing under You (logged in).", true);
+    return;
+  }
+  try {
+    const feesUrl = `${base}/api/base/fees?tokenAddress=${encodeURIComponent(tokenAddress)}&rewardRecipient=${encodeURIComponent(rewardRecipient)}`;
+    const fr = await fetch(feesUrl, { cache: "no-store" });
+    const fj = await fr.json().catch(() => ({}));
+    if (!fr.ok) {
+      showStatus(
+        typeof fj.error === "string" ? fj.error : "Fee check failed.",
+        true
+      );
+      return;
+    }
+    const weiStr = fj.availableWei != null ? String(fj.availableWei) : "0";
+    let wei;
+    try {
+      wei = BigInt(weiStr);
+    } catch {
+      wei = 0n;
+    }
+    if (wei === 0n) {
+      showStatus("No accrued fees to claim for this token.", false);
+      return;
+    }
+    showStatus("Claiming fees on Base (relay pays gas)…", false);
+    const res = await fetch(`${base}/api/base/claim`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        tokenAddress,
+        rewardRecipient,
+        fomoUsername: handle,
+      }),
+    });
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) {
+      showStatus(
+        typeof data.error === "string" ? data.error : `Claim failed (${res.status})`,
+        true
+      );
+      return;
+    }
+    const ex = typeof data.explorerUrl === "string" ? data.explorerUrl : "";
+    showStatus(ex ? `Claim submitted. ${ex}` : "Claim transaction sent.", false);
+  } catch (e) {
+    showStatus(e instanceof Error ? e.message : String(e), true);
+  }
 }
 
 /** HTTPS links we allow as deploy result / duplicate-token references. */
@@ -541,6 +693,7 @@ async function refreshFromStorage() {
   }
 
   await renderDeployGateMetrics(loggedIn);
+  await renderRecentDeploys();
 }
 
 deployTargetEl?.addEventListener("change", () => {
@@ -843,6 +996,14 @@ prepareBtn.addEventListener("click", async () => {
       (mint && !isClanker ? `https://fomo.family/tokens/solana/${mint}` : "") ||
       (mint && isClanker ? `https://fomo.family/tokens/base/${mint}` : "")
     ).trim();
+    await recordRecentDeploy({
+      name: name,
+      symbol: symbol,
+      data,
+      isClanker,
+      fomoLink,
+    });
+    await renderRecentDeploys();
     if (fomoLink && isSafeDeployReferenceUrl(fomoLink)) {
       showDeployResultLink(
         fomoLink,
@@ -868,6 +1029,51 @@ prepareBtn.addEventListener("click", async () => {
   } finally {
     clearTimeout(abortTimer);
     prepareBtn.disabled = false;
+  }
+});
+
+recentDeploysListEl?.addEventListener("click", (e) => {
+  const t = e.target;
+  if (!t || typeof t.closest !== "function") return;
+  const btn = t.closest("[data-claim-base]");
+  if (!btn) return;
+  const addr = btn.getAttribute("data-claim-base");
+  if (addr) void claimBaseFees(addr);
+});
+
+imageUploadBtn?.addEventListener("click", async () => {
+  const f = imageFileEl?.files?.[0];
+  if (!f) {
+    if (imageUploadHintEl) imageUploadHintEl.textContent = "Choose a file first.";
+    showStatus("Choose an image file to upload.", true);
+    return;
+  }
+  if (imageUploadHintEl) imageUploadHintEl.textContent = "";
+  imageUploadBtn.disabled = true;
+  showStatus("Uploading image…", false);
+  try {
+    const base = RELAY_ORIGIN.replace(/\/$/, "");
+    const fd = new FormData();
+    fd.append("file", f, f.name);
+    const res = await fetch(`${base}/api/upload/image`, { method: "POST", body: fd });
+    const j = await res.json().catch(() => ({}));
+    if (!res.ok) {
+      showStatus(
+        typeof j.error === "string" ? j.error : `Upload failed (${res.status})`,
+        true
+      );
+      return;
+    }
+    const url = j.gatewayUrl || j.ipfsUri;
+    if (url && imageEl) imageEl.value = url;
+    if (imageUploadHintEl) {
+      imageUploadHintEl.textContent = j.cid ? `CID: ${j.cid}` : "Uploaded.";
+    }
+    showStatus("Image uploaded — URL filled in for deploy.", false);
+  } catch (e) {
+    showStatus(e instanceof Error ? e.message : String(e), true);
+  } finally {
+    imageUploadBtn.disabled = false;
   }
 });
 
