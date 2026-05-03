@@ -857,7 +857,7 @@ function profileDisplayEvm() {
    * Structured /balances EVM is often wrong on **someone else’s** profile (UUID mix-up) while Sol
    * still looks right — only trust structured EVM on your own profile row.
    */
-  if (fromBal?.evm?.length && (!viewingSomeoneElse || !profileCanonListEvm.length)) return [...fromBal.evm];
+  if (fromBal?.evm?.length && !viewingSomeoneElse) return [...fromBal.evm];
   if (slug) return [];
   return [...profListEvm];
 }
