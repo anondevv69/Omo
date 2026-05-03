@@ -133,13 +133,17 @@ const RELAY_ORIGIN = "https://fomofam-production.up.railway.app";
 
 let omoDeployPanelTimer = 0;
 
+/** ms — skip refetch if same @handle and panel already rendered OK */
+const OMO_DEPLOY_PANEL_CACHE_MS = 90_000;
+
 function scheduleOmoDeployProfilePanel() {
   clearTimeout(omoDeployPanelTimer);
-  omoDeployPanelTimer = setTimeout(() => void renderOmoDeployProfilePanel(), 400);
+  omoDeployPanelTimer = setTimeout(() => void renderOmoDeployProfilePanel(), 600);
 }
 
 /**
  * Floating panel on /profile/:handle — tokens this user deployed via Omo (relay Postgres index).
+ * Solana (Pump) and Base (Clanker) both appear when the relay indexes `deploy_tokens` (same API).
  */
 async function renderOmoDeployProfilePanel() {
   const rootId = "omo-deployed-tokens-root";
@@ -180,15 +184,28 @@ async function renderOmoDeployProfilePanel() {
     document.body.appendChild(root);
   }
 
+  const lastAt = Number(root.dataset.omoFetchedAt || 0);
+  const sameHandleOk =
+    root.dataset.omoHandle === handle &&
+    root.dataset.omoState === "ready" &&
+    Date.now() - lastAt < OMO_DEPLOY_PANEL_CACHE_MS;
+  if (sameHandleOk) {
+    return;
+  }
+
   const title = document.createElement("div");
   title.style.cssText = "opacity:0.9;font-weight:600;margin-bottom:8px;";
   title.textContent = `Omo deploys · @${handle}`;
 
-  const loading = document.createElement("div");
-  loading.style.opacity = "0.65";
-  loading.textContent = "Loading…";
-
-  root.replaceChildren(title, loading);
+  const showLoading = root.dataset.omoHandle !== handle || root.dataset.omoState !== "ready";
+  if (showLoading) {
+    const loading = document.createElement("div");
+    loading.style.opacity = "0.65";
+    loading.textContent = "Loading…";
+    root.replaceChildren(title, loading);
+    root.dataset.omoHandle = handle;
+    root.dataset.omoState = "loading";
+  }
 
   try {
     const base = RELAY_ORIGIN.replace(/\/$/, "");
@@ -198,8 +215,19 @@ async function renderOmoDeployProfilePanel() {
     );
     const j = await res.json().catch(() => ({}));
     const tokens = Array.isArray(j.tokens) ? j.tokens : [];
+    const indexed = j.indexed !== false;
+
+    title.textContent = `Omo deploys · @${handle}`;
+
     if (!tokens.length) {
-      root.remove();
+      const msg = document.createElement("div");
+      msg.style.cssText = "opacity:0.8;line-height:1.4;";
+      msg.textContent = indexed
+        ? "No deploys indexed for this handle on this relay yet (Solana + Base both use the same index)."
+        : "Relay has no deploy database — set DATABASE_URL on the API (Railway → Postgres reference).";
+      root.replaceChildren(title, msg);
+      root.dataset.omoState = "ready";
+      root.dataset.omoFetchedAt = String(Date.now());
       return;
     }
 
@@ -226,8 +254,16 @@ async function renderOmoDeployProfilePanel() {
       frag.appendChild(row);
     }
     root.replaceChildren(frag);
+    root.dataset.omoState = "ready";
+    root.dataset.omoFetchedAt = String(Date.now());
+    root.dataset.omoHandle = handle;
   } catch {
-    root.remove();
+    const err = document.createElement("div");
+    err.style.opacity = "0.75";
+    err.textContent = "Could not load deploy list (offline or relay error).";
+    root.replaceChildren(title, err);
+    root.dataset.omoState = "ready";
+    root.dataset.omoFetchedAt = String(Date.now());
   }
 }
 
@@ -769,16 +805,24 @@ function pageScanSolanaEvm(slug, dom) {
 
 /** Prefer structured balances (wallet per row), then GET /users/{owner} canon, then DOM/walk */
 function profileDisplaySol() {
+  const slug = currentProfileSlug();
   const fromBal = profileSolFromStructured();
   if (fromBal?.sol?.length) return [...fromBal.sol];
   if (profileCanonListSol.length) return [...profileCanonListSol];
+  /**
+   * On /profile/* never fall back to blind `profList*` walks — they mix unrelated addresses from the
+   * same API response and caused wrong “This profile” wallets.
+   */
+  if (slug) return [];
   return [...profListSol];
 }
 
 function profileDisplayEvm() {
+  const slug = currentProfileSlug();
   const fromBal = profileSolFromStructured();
   if (fromBal?.evm?.length) return [...fromBal.evm];
   if (profileCanonListEvm.length) return [...profileCanonListEvm];
+  if (slug) return [];
   return [...profListEvm];
 }
 
