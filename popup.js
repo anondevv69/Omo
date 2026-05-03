@@ -20,6 +20,8 @@ const foldYouLoggedInEl = document.getElementById("foldYouLoggedIn");
 const profileViewingLineEl = document.getElementById("profileViewingLine");
 const youAccountLineEl = document.getElementById("youAccountLine");
 const foreignProfileSectionEl = document.getElementById("foreignProfileSection");
+const profileRelayDeploysWrapEl = document.getElementById("profileRelayDeploysWrap");
+const profileRelayDeploysListEl = document.getElementById("profileRelayDeploysList");
 const loginGateEl = document.getElementById("login-gate");
 const appRootEl = document.getElementById("app-root");
 const headerStatusEl = document.getElementById("headerStatus");
@@ -164,6 +166,85 @@ async function recordRecentDeploy({ name, symbol, data, isClanker, fomoLink }) {
     await chrome.storage.local.set({ [OMO_RECENT_DEPLOYS_KEY]: next });
   } catch {
     /* ignore */
+  }
+}
+
+/**
+ * When viewing someone else’s /profile/… tab — load Postgres-backed deploy index for **their** handle.
+ * (Your own merged deploys still live under “Your recent deploys”.)
+ */
+async function renderProfileRelayDeploys(profileSlugRaw) {
+  if (!profileRelayDeploysWrapEl || !profileRelayDeploysListEl) return;
+  const slug = decodeURIComponent(String(profileSlugRaw || "").trim())
+    .replace(/^@+/, "")
+    .toLowerCase();
+  if (!slug) {
+    profileRelayDeploysWrapEl.hidden = true;
+    profileRelayDeploysListEl.replaceChildren();
+    return;
+  }
+  profileRelayDeploysWrapEl.hidden = false;
+  profileRelayDeploysListEl.replaceChildren();
+  const loading = document.createElement("p");
+  loading.className = "hint";
+  loading.textContent = "Loading relay index…";
+  profileRelayDeploysListEl.appendChild(loading);
+
+  const base = RELAY_ORIGIN.replace(/\/$/, "");
+  try {
+    const r = await fetch(
+      `${base}/api/deploy/tokens?fomoUsername=${encodeURIComponent(slug)}&limit=30`,
+      { cache: "no-store" }
+    );
+    const j = await r.json().catch(() => ({}));
+    profileRelayDeploysListEl.replaceChildren();
+    const tokens = Array.isArray(j.tokens) ? j.tokens : [];
+    if (!tokens.length) {
+      const p = document.createElement("p");
+      p.className = "hint";
+      p.textContent =
+        j.indexed === false
+          ? "Relay has no deploy database — operator sets DATABASE_URL."
+          : "No deploys indexed for this handle on this relay yet.";
+      profileRelayDeploysListEl.appendChild(p);
+      return;
+    }
+    for (const row of tokens) {
+      if (!row || typeof row !== "object") continue;
+      const chain = row.chain === "base" ? "Base" : "Solana";
+      const sym = String(row.symbol || "—");
+      const nm = String(row.name || "");
+      const addr = String(row.tokenAddress || "").trim();
+      const fomoU = String(row.fomoFamilyUrl || "").trim();
+      const el = document.createElement("div");
+      el.className = "recent-deploy-item";
+      const title = document.createElement("div");
+      title.className = "rd-title";
+      title.textContent = `${nm} ($${sym}) · ${chain}`;
+      const meta = document.createElement("div");
+      meta.className = "rd-meta";
+      meta.textContent = addr || "";
+      const actions = document.createElement("div");
+      actions.className = "recent-deploy-actions";
+      if (fomoU) {
+        const a = document.createElement("a");
+        a.href = fomoU;
+        a.target = "_blank";
+        a.rel = "noopener noreferrer";
+        a.textContent = "Open on fomo.family";
+        actions.appendChild(a);
+      }
+      el.appendChild(title);
+      el.appendChild(meta);
+      el.appendChild(actions);
+      profileRelayDeploysListEl.appendChild(el);
+    }
+  } catch {
+    profileRelayDeploysListEl.replaceChildren();
+    const p = document.createElement("p");
+    p.className = "hint";
+    p.textContent = "Could not reach relay deploy list.";
+    profileRelayDeploysListEl.appendChild(p);
   }
 }
 
@@ -705,9 +786,11 @@ async function refreshFromStorage() {
   if (viewingOtherProfile) {
     foreignProfileSectionEl.hidden = false;
     profileViewingLineEl.innerHTML = `Viewing profile <strong>@${slug}</strong>`;
+    await renderProfileRelayDeploys(slug);
   } else {
     foreignProfileSectionEl.hidden = true;
     profileViewingLineEl.innerHTML = "";
+    if (profileRelayDeploysWrapEl) profileRelayDeploysWrapEl.hidden = true;
   }
 
   renderList(

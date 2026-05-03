@@ -513,6 +513,8 @@ function pushYouFromDetail(ud) {
 /**
  * When `responseObject.address` is missing but the JSON walk found wallets, still fill profile canon
  * for this slug (profile pages skip blind walks into apiList).
+ * Never append **EVM** from blind walks — the same response blob often includes unrelated 0x addresses
+ * (viewer balances, pool contracts), which made "This profile" show the wrong Base wallet.
  */
 function supplementProfileCanonFromSniffIfSlugMatches(slug, d) {
   const ud = d.userDetail;
@@ -520,7 +522,6 @@ function supplementProfileCanonFromSniffIfSlugMatches(slug, d) {
   if (!slug || !ph || String(ph).toLowerCase() !== String(slug).toLowerCase()) return;
 
   const reSol = /^[1-9A-HJ-NP-Za-km-z]{43,44}$/;
-  const reEvm = /^0x[a-fA-F0-9]{40}$/i;
   let added = 0;
   const max = 12;
   for (const a of d.solana || []) {
@@ -529,14 +530,6 @@ function supplementProfileCanonFromSniffIfSlugMatches(slug, d) {
     if (profileCanonSeenSol.has(a)) continue;
     profileCanonSeenSol.add(a);
     profileCanonListSol.push(a);
-    added++;
-  }
-  for (const a of d.evm || []) {
-    if (added >= max) break;
-    if (typeof a !== "string" || !reEvm.test(a)) continue;
-    if (profileCanonSeenEvm.has(a)) continue;
-    profileCanonSeenEvm.add(a);
-    profileCanonListEvm.push(a);
     added++;
   }
 }

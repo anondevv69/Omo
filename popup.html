@@ -547,6 +547,13 @@
       <p id="profileViewingLine" class="profile-viewing-line"></p>
       <div id="scanProfileSol" class="scan-list"></div>
       <div id="scanProfileEvm" class="scan-list"></div>
+      <div id="profileRelayDeploysWrap" class="profile-relay-deploys" hidden>
+        <div class="section-title">Omo deploys (this profile)</div>
+        <p class="hint">
+          From this relay’s index — not your browser’s “Your recent deploys” list.
+        </p>
+        <div id="profileRelayDeploysList" class="recent-deploys-list" aria-live="polite"></div>
+      </div>
     </div>
 
     <details class="fold-you fold-deploy">
@@ -632,7 +639,8 @@
       <summary>Your recent deploys</summary>
       <div class="fold-you-inner">
         <p class="hint">
-          Saved in this browser after each successful deploy. Use <strong>Claim fees</strong> on Base when the relay has fees to sweep to your FOMO-linked wallet.
+          <strong>Your</strong> deploys: merged from this relay (if configured) plus this browser after each success.
+          Use <strong>Claim fees</strong> on Base for your own tokens. When you open someone else’s profile, their indexed deploys appear under <strong>This profile</strong>.
         </p>
         <div id="recentDeploysList" class="recent-deploys-list" aria-live="polite"></div>
       </div>
