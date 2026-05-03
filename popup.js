@@ -242,10 +242,12 @@ async function renderRecentDeploys() {
     : [];
   recentDeploysListEl.replaceChildren();
   if (!list.length) {
-    if (recentDeploysFoldEl) recentDeploysFoldEl.hidden = true;
+    const p = document.createElement("p");
+    p.className = "hint";
+    p.textContent = "No deployments found.";
+    recentDeploysListEl.appendChild(p);
     return;
   }
-  if (recentDeploysFoldEl) recentDeploysFoldEl.hidden = false;
   for (const row of list) {
     if (!row || typeof row !== "object") continue;
     const chain = row.chain === "base" ? "Base" : "Solana";
@@ -751,6 +753,10 @@ async function refreshFromStorage() {
   /** Another user’s profile tab — not your own slug and not “no slug”. */
   const viewingOtherProfile =
     Boolean(slug) && (!acctNorm || slugNorm !== acctNorm);
+
+  if (recentDeploysFoldEl) {
+    recentDeploysFoldEl.hidden = !loggedIn;
+  }
 
   if (loggedIn) {
     if (acct) {
