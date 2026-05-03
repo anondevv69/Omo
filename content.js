@@ -128,6 +128,109 @@ function currentProfileSlug() {
   return m ? decodeURIComponent(m[1]) : null;
 }
 
+/** Same relay as popup / background — indexed deploys for profile overlay. */
+const RELAY_ORIGIN = "https://fomofam-production.up.railway.app";
+
+let omoDeployPanelTimer = 0;
+
+function scheduleOmoDeployProfilePanel() {
+  clearTimeout(omoDeployPanelTimer);
+  omoDeployPanelTimer = setTimeout(() => void renderOmoDeployProfilePanel(), 400);
+}
+
+/**
+ * Floating panel on /profile/:handle — tokens this user deployed via Omo (relay Postgres index).
+ */
+async function renderOmoDeployProfilePanel() {
+  const rootId = "omo-deployed-tokens-root";
+  const slug = currentProfileSlug();
+  if (!slug) {
+    document.getElementById(rootId)?.remove();
+    return;
+  }
+  const handle = decodeURIComponent(slug).replace(/^@+/, "").trim().toLowerCase();
+  if (!handle) {
+    document.getElementById(rootId)?.remove();
+    return;
+  }
+
+  let root = document.getElementById(rootId);
+  if (!root) {
+    root = document.createElement("aside");
+    root.id = rootId;
+    root.setAttribute("data-omo", "deploy-panel");
+    Object.assign(root.style, {
+      position: "fixed",
+      bottom: "12px",
+      right: "12px",
+      maxWidth: "300px",
+      maxHeight: "min(40vh, 220px)",
+      overflowY: "auto",
+      zIndex: "2147483646",
+      fontFamily: "system-ui, -apple-system, sans-serif",
+      fontSize: "12px",
+      lineHeight: "1.35",
+      background: "rgba(15, 17, 21, 0.94)",
+      color: "#e8eaed",
+      borderRadius: "10px",
+      padding: "10px 12px",
+      boxShadow: "0 8px 32px rgba(0,0,0,0.4)",
+      border: "1px solid rgba(255,255,255,0.08)",
+    });
+    document.body.appendChild(root);
+  }
+
+  const title = document.createElement("div");
+  title.style.cssText = "opacity:0.9;font-weight:600;margin-bottom:8px;";
+  title.textContent = `Omo deploys · @${handle}`;
+
+  const loading = document.createElement("div");
+  loading.style.opacity = "0.65";
+  loading.textContent = "Loading…";
+
+  root.replaceChildren(title, loading);
+
+  try {
+    const base = RELAY_ORIGIN.replace(/\/$/, "");
+    const res = await fetch(
+      `${base}/api/deploy/tokens?fomoUsername=${encodeURIComponent(handle)}&limit=25`,
+      { cache: "no-store" }
+    );
+    const j = await res.json().catch(() => ({}));
+    const tokens = Array.isArray(j.tokens) ? j.tokens : [];
+    if (!tokens.length) {
+      root.remove();
+      return;
+    }
+
+    const frag = document.createDocumentFragment();
+    frag.appendChild(title);
+    for (const t of tokens) {
+      const chain = t.chain === "base" ? "Base" : "Solana";
+      const sym = String(t.symbol || "—").toUpperCase();
+      const nm = String(t.name || "").trim() || "—";
+      const fu = String(t.fomoFamilyUrl || "").trim();
+      const row = document.createElement("div");
+      row.style.margin = "6px 0";
+      if (fu) {
+        const a = document.createElement("a");
+        a.href = fu;
+        a.target = "_blank";
+        a.rel = "noopener noreferrer";
+        a.style.cssText = "color:#8ab4f8;text-decoration:none;";
+        a.textContent = `${nm} ($${sym}) · ${chain}`;
+        row.appendChild(a);
+      } else {
+        row.textContent = `${nm} ($${sym}) · ${chain}`;
+      }
+      frag.appendChild(row);
+    }
+    root.replaceChildren(frag);
+  } catch {
+    root.remove();
+  }
+}
+
 function isProfileBalancesUrl(url) {
   if (!url || typeof url !== "string") return false;
   return (
@@ -793,6 +896,8 @@ async function publish() {
     lastYouFomoHandle: nextYouHandle,
     lastDeployFomoHandle: nextDepH,
   });
+
+  scheduleOmoDeployProfilePanel();
 }
 
 /** MV3 popup awaits this — use Promise return, not sendResponse + return true (channel closes). */

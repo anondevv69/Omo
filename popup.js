@@ -32,6 +32,67 @@ let headerError = false;
 const OMO_RECENT_DEPLOYS_KEY = "omoRecentDeploys";
 const RECENT_DEPLOYS_MAX = 30;
 
+/** Merge relay Postgres index with local chrome.storage entries (same token address wins newest `at`). */
+function mergeDeployLists(localList, remoteTokens) {
+  const map = new Map();
+  for (const row of localList) {
+    if (row && typeof row === "object" && row.address) {
+      map.set(row.address, { ...row });
+    }
+  }
+  for (const t of remoteTokens) {
+    const addr = String(t.tokenAddress || "").trim();
+    if (!addr) continue;
+    const chain = t.chain === "base" ? "base" : "solana";
+    const remoteAt = t.deployedAt ? Date.parse(t.deployedAt) : NaN;
+    const rt = Number.isFinite(remoteAt) ? remoteAt : Date.now();
+    const prev = map.get(addr);
+    const defaultFomo =
+      chain === "base"
+        ? `https://fomo.family/tokens/base/${addr}`
+        : `https://fomo.family/tokens/solana/${addr}`;
+    map.set(addr, {
+      at: Math.max(prev?.at || 0, rt),
+      chain,
+      name: String(t.name || prev?.name || "—").trim() || "—",
+      symbol: String(t.symbol || prev?.symbol || "—").toUpperCase() || "—",
+      address: addr,
+      fomoFamilyUrl:
+        String(t.fomoFamilyUrl || prev?.fomoFamilyUrl || "").trim() || defaultFomo,
+      mintExplorerUrl: String(t.mintExplorerUrl || prev?.mintExplorerUrl || "").trim(),
+    });
+  }
+  return [...map.values()]
+    .sort((a, b) => (b.at || 0) - (a.at || 0))
+    .slice(0, RECENT_DEPLOYS_MAX);
+}
+
+async function mergeRelayDeployHistoryForHandle(handle) {
+  const h = String(handle || "")
+    .trim()
+    .replace(/^@+/, "")
+    .toLowerCase();
+  if (!h) return;
+  const base = RELAY_ORIGIN.replace(/\/$/, "");
+  try {
+    const r = await fetch(
+      `${base}/api/deploy/tokens?fomoUsername=${encodeURIComponent(h)}&limit=${RECENT_DEPLOYS_MAX}`,
+      { cache: "no-store" }
+    );
+    if (!r.ok) return;
+    const j = await r.json().catch(() => ({}));
+    const remote = Array.isArray(j.tokens) ? j.tokens : [];
+    const prev = await chrome.storage.local.get([OMO_RECENT_DEPLOYS_KEY]);
+    const local = Array.isArray(prev[OMO_RECENT_DEPLOYS_KEY])
+      ? prev[OMO_RECENT_DEPLOYS_KEY]
+      : [];
+    const merged = mergeDeployLists(local, remote);
+    await chrome.storage.local.set({ [OMO_RECENT_DEPLOYS_KEY]: merged });
+  } catch {
+    /* ignore — offline or relay has no DATABASE_URL */
+  }
+}
+
 function renderHeaderBadge(loggedIn) {
   if (!headerStatusEl) return;
   headerStatusEl.classList.remove("ok", "warn", "err");
@@ -117,7 +178,7 @@ async function renderRecentDeploys() {
     const p = document.createElement("p");
     p.className = "hint";
     p.textContent =
-      "No deploys recorded yet — they appear here after a successful deploy.";
+      "No deploys listed yet — deploy from Omo or wait for the relay index if your relay uses Postgres.";
     recentDeploysListEl.appendChild(p);
     return;
   }
@@ -691,6 +752,9 @@ async function refreshFromStorage() {
   }
 
   await renderDeployGateMetrics(loggedIn);
+  if (loggedIn && acct) {
+    await mergeRelayDeployHistoryForHandle(acct);
+  }
   await renderRecentDeploys();
 }
 
