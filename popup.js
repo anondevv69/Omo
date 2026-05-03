@@ -6,7 +6,7 @@ const RELAY_ORIGIN = "https://fomofam-production.up.railway.app";
 
 const nameEl = document.getElementById("name");
 const symbolEl = document.getElementById("symbol");
-const imageEl = document.getElementById("image");
+const imageUrlEl = document.getElementById("imageUrl");
 const descriptionEl = document.getElementById("description");
 const websiteEl = document.getElementById("website");
 const twitterEl = document.getElementById("twitter");
@@ -24,8 +24,6 @@ const loginGateEl = document.getElementById("login-gate");
 const appRootEl = document.getElementById("app-root");
 const headerStatusEl = document.getElementById("headerStatus");
 const imageFileEl = document.getElementById("imageFile");
-const imageUploadBtn = document.getElementById("imageUploadBtn");
-const imageUploadHintEl = document.getElementById("imageUploadHint");
 const recentDeploysListEl = document.getElementById("recentDeploysList");
 
 /** When true, header shows Error until a successful Refresh clears it. */
@@ -753,7 +751,6 @@ document.getElementById("rescan").addEventListener("click", async () => {
 prepareBtn.addEventListener("click", async () => {
   const name = nameEl.value.trim();
   const symbol = symbolEl.value.trim();
-  const image = imageEl.value.trim();
   const description = descriptionEl.value.trim();
   const website = websiteEl.value.trim();
   const twitter = twitterEl.value.trim();
@@ -799,6 +796,43 @@ prepareBtn.addEventListener("click", async () => {
         "Base (Clanker) sends rewards to your FOMO EVM wallet. Open fomo.family until your wallet appears under You (logged in), then tap Refresh.",
         true
       );
+      return;
+    }
+  }
+
+  const urlManual = imageUrlEl ? String(imageUrlEl.value || "").trim() : "";
+  const artFile = imageFileEl?.files?.[0];
+  if (urlManual && artFile) {
+    prepareBtn.disabled = false;
+    showStatus("Use either an image link or a file — not both.", true);
+    return;
+  }
+
+  let image = urlManual;
+  if (artFile) {
+    showStatus("Uploading artwork…", false);
+    try {
+      const fd = new FormData();
+      fd.append("file", artFile, artFile.name);
+      const up = await fetch(`${base}/api/upload/image`, { method: "POST", body: fd });
+      const ju = await up.json().catch(() => ({}));
+      if (!up.ok) {
+        prepareBtn.disabled = false;
+        showStatus(
+          typeof ju.error === "string" ? ju.error : `Image upload failed (${up.status})`,
+          true
+        );
+        return;
+      }
+      image = String(ju.gatewayUrl || ju.ipfsUri || "").trim();
+      if (!image) {
+        prepareBtn.disabled = false;
+        showStatus("Upload did not return an artwork URL.", true);
+        return;
+      }
+    } catch (e) {
+      prepareBtn.disabled = false;
+      showStatus(e instanceof Error ? e.message : String(e), true);
       return;
     }
   }
@@ -1039,42 +1073,6 @@ recentDeploysListEl?.addEventListener("click", (e) => {
   if (!btn) return;
   const addr = btn.getAttribute("data-claim-base");
   if (addr) void claimBaseFees(addr);
-});
-
-imageUploadBtn?.addEventListener("click", async () => {
-  const f = imageFileEl?.files?.[0];
-  if (!f) {
-    if (imageUploadHintEl) imageUploadHintEl.textContent = "Choose a file first.";
-    showStatus("Choose an image file to upload.", true);
-    return;
-  }
-  if (imageUploadHintEl) imageUploadHintEl.textContent = "";
-  imageUploadBtn.disabled = true;
-  showStatus("Uploading image…", false);
-  try {
-    const base = RELAY_ORIGIN.replace(/\/$/, "");
-    const fd = new FormData();
-    fd.append("file", f, f.name);
-    const res = await fetch(`${base}/api/upload/image`, { method: "POST", body: fd });
-    const j = await res.json().catch(() => ({}));
-    if (!res.ok) {
-      showStatus(
-        typeof j.error === "string" ? j.error : `Upload failed (${res.status})`,
-        true
-      );
-      return;
-    }
-    const url = j.gatewayUrl || j.ipfsUri;
-    if (url && imageEl) imageEl.value = url;
-    if (imageUploadHintEl) {
-      imageUploadHintEl.textContent = j.cid ? `CID: ${j.cid}` : "Uploaded.";
-    }
-    showStatus("Image uploaded — URL filled in for deploy.", false);
-  } catch (e) {
-    showStatus(e instanceof Error ? e.message : String(e), true);
-  } finally {
-    imageUploadBtn.disabled = false;
-  }
 });
 
 void refreshFromStorage();

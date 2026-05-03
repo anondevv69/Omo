@@ -356,23 +356,12 @@
         user-select: none;
       }
       .image-upload-row {
-        margin-top: 6px;
+        margin-top: 10px;
       }
-      .image-upload-controls {
-        display: flex;
-        flex-wrap: wrap;
-        gap: 8px;
-        align-items: center;
+      .image-upload-row input[type="file"] {
         margin-top: 4px;
-      }
-      .image-upload-controls input[type="file"] {
         font-size: 11px;
         max-width: 100%;
-      }
-      .image-upload-controls button.secondary {
-        margin-top: 0;
-        width: auto;
-        padding: 8px 12px;
       }
       .recent-deploys-list {
         display: flex;
@@ -601,16 +590,20 @@
         <label for="description">Description <span class="optional">(optional)</span></label>
         <textarea id="description" rows="3" maxlength="2000" placeholder="Write a short description"></textarea>
 
-        <label for="image">Image URL <span class="optional">(optional)</span></label>
-        <input id="image" type="url" placeholder="https://… or ipfs://… (token artwork)" spellcheck="false" />
+        <label for="imageUrl">Artwork <span class="optional">(optional)</span></label>
+        <p class="hint">
+          Paste an image link, or choose a file below — files upload when you tap <strong>Deploy</strong> (relay → IPFS); nothing long appears in the box.
+        </p>
+        <input
+          id="imageUrl"
+          type="url"
+          placeholder="https://… image link (optional)"
+          spellcheck="false"
+        />
 
         <div class="image-upload-row">
-          <label class="image-upload-label">Upload image <span class="optional">(Lighthouse IPFS via relay)</span></label>
-          <div class="image-upload-controls">
-            <input id="imageFile" type="file" accept="image/*" />
-            <button type="button" id="imageUploadBtn" class="secondary">Upload</button>
-          </div>
-          <p class="hint" id="imageUploadHint"></p>
+          <label for="imageFile">Or choose image file</label>
+          <input id="imageFile" type="file" accept="image/*" />
         </div>
 
         <details class="fold-social" open>

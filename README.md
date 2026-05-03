@@ -71,11 +71,11 @@ Your choice is remembered for next time (stored in the extension).
 1. Stay logged in on **fomo.family** and confirm **You (logged in)** shows your account.
 2. Open Omo → expand **Deploy token**.
 3. Pick **Solana · Pump** or **Base · Clanker**.
-4. Fill **Coin name** and **Ticker** (required). Optionally add **description**, **image URL**, and **social links** (website, X, Telegram).
+4. Fill **Coin name** and **Ticker** (required). Optionally add **description**, **artwork** (link and/or file), and **social links** (website, X, Telegram).
 
-### Image upload (Lighthouse IPFS)
+### Artwork (URL or file)
 
-Instead of pasting an image URL, use **Upload** next to the file picker. The extension sends the file to your relay’s **`POST /api/upload/image`** (multipart field `file`). The relay must have **`LIGHTHOUSE_API_KEY`** set — see [Lighthouse file upload](https://docs.lighthouse.storage/how-to/upload-data/file). On success, Omo fills **Image URL** with the HTTPS gateway link (`https://gateway.lighthouse.storage/ipfs/…`).
+Paste an **image URL**, or choose a **file** — the file is sent to your relay’s **`POST /api/upload/image`** when you tap **Deploy** (not before). The gateway URL is passed straight into token metadata; you don’t need to see or copy the long IPFS link. The relay needs **`LIGHTHOUSE_API_KEY`** — see [Lighthouse file upload](https://docs.lighthouse.storage/how-to/upload-data/file). Don’t use a URL and a file at the same time.
 
 ### Your recent deploys
 
