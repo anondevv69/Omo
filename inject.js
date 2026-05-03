@@ -322,6 +322,8 @@
       address: typeof ro.address === "string" ? ro.address : null,
       evmAddress: typeof ro.evmAddress === "string" ? ro.evmAddress : null,
       profileHandle,
+      /** FOMO: public profile payloads can be stale until the account is activated. */
+      activated: typeof ro.activated === "boolean" ? ro.activated : undefined,
     };
   }
 
@@ -355,6 +357,7 @@
           evmAddress: typeof ro.evmAddress === "string" ? ro.evmAddress : null,
           profileHandle: decodeURIComponent(byHandle[1]),
           isSelf: false,
+          activated: typeof ro.activated === "boolean" ? ro.activated : undefined,
         };
       }
 

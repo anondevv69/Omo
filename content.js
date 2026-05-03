@@ -142,7 +142,8 @@ function scheduleOmoDeployProfilePanel() {
 }
 
 /**
- * Floating panel on /profile/:handle — tokens this user deployed via Omo (relay index). Hidden if none.
+ * Corner panel: only appears after a successful deploy list fetch with ≥1 token (no on-page “Loading…”).
+ * Uses the same relay as the popup; hide/remove when empty or error.
  */
 async function renderOmoDeployProfilePanel() {
   const rootId = "omo-deployed-tokens-root";
@@ -153,6 +154,39 @@ async function renderOmoDeployProfilePanel() {
   }
   const handle = decodeURIComponent(slug).replace(/^@+/, "").trim().toLowerCase();
   if (!handle) {
+    document.getElementById(rootId)?.remove();
+    return;
+  }
+
+  const existing = document.getElementById(rootId);
+  const lastAt = Number(existing?.dataset.omoFetchedAt || 0);
+  if (
+    existing &&
+    existing.dataset.omoHandle === handle &&
+    Date.now() - lastAt < OMO_DEPLOY_PANEL_CACHE_MS
+  ) {
+    return;
+  }
+
+  const base = RELAY_ORIGIN.replace(/\/$/, "");
+  const controller = new AbortController();
+  const tid = setTimeout(() => controller.abort(), 12_000);
+  let tokens = [];
+  try {
+    const res = await fetch(
+      `${base}/api/deploy/tokens?fomoUsername=${encodeURIComponent(handle)}&limit=25`,
+      { cache: "no-store", signal: controller.signal }
+    );
+    clearTimeout(tid);
+    const j = await res.json().catch(() => ({}));
+    tokens = Array.isArray(j.tokens) ? j.tokens : [];
+  } catch {
+    clearTimeout(tid);
+    document.getElementById(rootId)?.remove();
+    return;
+  }
+
+  if (!tokens.length) {
     document.getElementById(rootId)?.remove();
     return;
   }
@@ -183,74 +217,35 @@ async function renderOmoDeployProfilePanel() {
     document.body.appendChild(root);
   }
 
-  const lastAt = Number(root.dataset.omoFetchedAt || 0);
-  const sameHandleOk =
-    root.dataset.omoHandle === handle &&
-    root.dataset.omoState === "ready" &&
-    Date.now() - lastAt < OMO_DEPLOY_PANEL_CACHE_MS;
-  if (sameHandleOk) {
-    return;
-  }
-
   const title = document.createElement("div");
   title.style.cssText = "opacity:0.9;font-weight:600;margin-bottom:8px;";
   title.textContent = `Omo deploys · @${handle}`;
 
-  const showLoading = root.dataset.omoHandle !== handle || root.dataset.omoState !== "ready";
-  if (showLoading) {
-    const loading = document.createElement("div");
-    loading.style.opacity = "0.65";
-    loading.textContent = "Loading…";
-    root.replaceChildren(title, loading);
-    root.dataset.omoHandle = handle;
-    root.dataset.omoState = "loading";
-  }
-
-  try {
-    const base = RELAY_ORIGIN.replace(/\/$/, "");
-    const res = await fetch(
-      `${base}/api/deploy/tokens?fomoUsername=${encodeURIComponent(handle)}&limit=25`,
-      { cache: "no-store" }
-    );
-    const j = await res.json().catch(() => ({}));
-    const tokens = Array.isArray(j.tokens) ? j.tokens : [];
-
-    title.textContent = `Omo deploys · @${handle}`;
-
-    if (!tokens.length) {
-      root.remove();
-      return;
+  const frag = document.createDocumentFragment();
+  frag.appendChild(title);
+  for (const t of tokens) {
+    const chain = t.chain === "base" ? "Base" : "Solana";
+    const sym = String(t.symbol || "—").toUpperCase();
+    const nm = String(t.name || "").trim() || "—";
+    const fu = String(t.fomoFamilyUrl || "").trim();
+    const row = document.createElement("div");
+    row.style.margin = "6px 0";
+    if (fu) {
+      const a = document.createElement("a");
+      a.href = fu;
+      a.target = "_blank";
+      a.rel = "noopener noreferrer";
+      a.style.cssText = "color:#8ab4f8;text-decoration:none;";
+      a.textContent = `${nm} ($${sym}) · ${chain}`;
+      row.appendChild(a);
+    } else {
+      row.textContent = `${nm} ($${sym}) · ${chain}`;
     }
-
-    const frag = document.createDocumentFragment();
-    frag.appendChild(title);
-    for (const t of tokens) {
-      const chain = t.chain === "base" ? "Base" : "Solana";
-      const sym = String(t.symbol || "—").toUpperCase();
-      const nm = String(t.name || "").trim() || "—";
-      const fu = String(t.fomoFamilyUrl || "").trim();
-      const row = document.createElement("div");
-      row.style.margin = "6px 0";
-      if (fu) {
-        const a = document.createElement("a");
-        a.href = fu;
-        a.target = "_blank";
-        a.rel = "noopener noreferrer";
-        a.style.cssText = "color:#8ab4f8;text-decoration:none;";
-        a.textContent = `${nm} ($${sym}) · ${chain}`;
-        row.appendChild(a);
-      } else {
-        row.textContent = `${nm} ($${sym}) · ${chain}`;
-      }
-      frag.appendChild(row);
-    }
-    root.replaceChildren(frag);
-    root.dataset.omoState = "ready";
-    root.dataset.omoFetchedAt = String(Date.now());
-    root.dataset.omoHandle = handle;
-  } catch {
-    root.remove();
+    frag.appendChild(row);
   }
+  root.replaceChildren(frag);
+  root.dataset.omoFetchedAt = String(Date.now());
+  root.dataset.omoHandle = handle;
 }
 
 function isProfileBalancesUrl(url) {
@@ -465,14 +460,20 @@ function applyUserDetailToBuckets(ud) {
       profileCanonSeenEvm.clear();
       profileCanonListSol.length = 0;
       profileCanonListEvm.length = 0;
-      addCanon(
-        profileCanonListSol,
-        profileCanonListEvm,
-        profileCanonSeenSol,
-        profileCanonSeenEvm,
-        ud.address,
-        ud.evmAddress
-      );
+      /**
+       * FOMO `GET …/userHandle/{slug}` can return `activated: false` with Sol/EVM that do not match
+       * the session-linked wallets shown after login — skip writing those into “This profile”.
+       */
+      if (ud.activated !== false) {
+        addCanon(
+          profileCanonListSol,
+          profileCanonListEvm,
+          profileCanonSeenSol,
+          profileCanonSeenEvm,
+          ud.address,
+          ud.evmAddress
+        );
+      }
       if (
         typeof ph === "string" &&
         ph.trim() &&
@@ -492,7 +493,7 @@ function applyUserDetailToBuckets(ud) {
        * graph. Only write **This profile** wallets when `profileHandle` matches the URL slug — same
        * bar as `…/userHandle/{slug}` (Sol + EVM from one trusted row).
        */
-      if (profileHandleMatchesUrlSlug(slug, ud.profileHandle)) {
+      if (profileHandleMatchesUrlSlug(slug, ud.profileHandle) && ud.activated !== false) {
         addCanon(
           profileCanonListSol,
           profileCanonListEvm,
@@ -804,12 +805,26 @@ function pageScanSolanaEvm(slug, dom) {
   };
 }
 
+/** True when the open tab is your own `/profile/{handle}` (same @ as logged-in viewer). */
+function viewingOwnProfileSlug() {
+  const slug = currentProfileSlug();
+  if (!slug || !loggedInFomoHandle) return false;
+  const a = String(slug).trim().replace(/^@+/, "").toLowerCase();
+  const b = String(loggedInFomoHandle).trim().replace(/^@+/, "").toLowerCase();
+  return Boolean(a && b && a === b);
+}
+
 /**
  * Prefer GET …/userHandle/{slug} canon (profileCanon*), then structured /balances.
  * On /profile/* never fall back to blind `profList*` walks.
+ * Own profile: use session “You” wallets (match FOMO after login), not stale public userHandle row.
  */
 function profileDisplaySol() {
   const slug = currentProfileSlug();
+  if (viewingOwnProfileSlug()) {
+    const y = primaryWallet(youListSol);
+    if (y.length) return [...y];
+  }
   if (profileCanonListSol.length) return [...profileCanonListSol];
   const fromBal = profileSolFromStructured();
   if (fromBal?.sol?.length) return [...fromBal.sol];
@@ -819,6 +834,10 @@ function profileDisplaySol() {
 
 function profileDisplayEvm() {
   const slug = currentProfileSlug();
+  if (viewingOwnProfileSlug()) {
+    const y = primaryWallet(youListEvm);
+    if (y.length) return [...y];
+  }
   if (profileCanonListEvm.length) return [...profileCanonListEvm];
 
   const slugNorm = slug ? String(slug).trim().replace(/^@+/, "").toLowerCase() : "";
