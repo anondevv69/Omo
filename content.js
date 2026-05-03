@@ -803,25 +803,36 @@ function pageScanSolanaEvm(slug, dom) {
   };
 }
 
-/** Prefer structured balances (wallet per row), then GET /users/{owner} canon, then DOM/walk */
+/**
+ * Prefer GET …/userHandle/{slug} canon (profileCanon*), then structured /balances.
+ * On /profile/* never fall back to blind `profList*` walks.
+ */
 function profileDisplaySol() {
   const slug = currentProfileSlug();
+  if (profileCanonListSol.length) return [...profileCanonListSol];
   const fromBal = profileSolFromStructured();
   if (fromBal?.sol?.length) return [...fromBal.sol];
-  if (profileCanonListSol.length) return [...profileCanonListSol];
-  /**
-   * On /profile/* never fall back to blind `profList*` walks — they mix unrelated addresses from the
-   * same API response and caused wrong “This profile” wallets.
-   */
   if (slug) return [];
   return [...profListSol];
 }
 
 function profileDisplayEvm() {
   const slug = currentProfileSlug();
-  const fromBal = profileSolFromStructured();
-  if (fromBal?.evm?.length) return [...fromBal.evm];
   if (profileCanonListEvm.length) return [...profileCanonListEvm];
+
+  const slugNorm = slug ? String(slug).trim().replace(/^@+/, "").toLowerCase() : "";
+  const youNorm = String(loggedInFomoHandle || "")
+    .trim()
+    .replace(/^@+/, "")
+    .toLowerCase();
+  const viewingSomeoneElse = Boolean(slugNorm && youNorm && slugNorm !== youNorm);
+
+  const fromBal = profileSolFromStructured();
+  /**
+   * Structured /balances EVM is often wrong on **someone else’s** profile (UUID mix-up) while Sol
+   * still looks right — only trust structured EVM on your own profile row.
+   */
+  if (fromBal?.evm?.length && !viewingSomeoneElse) return [...fromBal.evm];
   if (slug) return [];
   return [...profListEvm];
 }
