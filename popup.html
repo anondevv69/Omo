@@ -549,9 +549,6 @@
       <div id="scanProfileEvm" class="scan-list"></div>
       <div id="profileRelayDeploysWrap" class="profile-relay-deploys" hidden>
         <div class="section-title">Omo deploys (this profile)</div>
-        <p class="hint">
-          From this relay’s index — not your browser’s “Your recent deploys” list.
-        </p>
         <div id="profileRelayDeploysList" class="recent-deploys-list" aria-live="polite"></div>
       </div>
     </div>
@@ -635,13 +632,9 @@
       </div>
     </details>
 
-    <details class="fold-you" id="recentDeploysFold">
+    <details class="fold-you" id="recentDeploysFold" hidden>
       <summary>Your recent deploys</summary>
       <div class="fold-you-inner">
-        <p class="hint">
-          <strong>Your</strong> deploys: merged from this relay (if configured) plus this browser after each success.
-          Use <strong>Claim fees</strong> on Base for your own tokens. When you open someone else’s profile, their indexed deploys appear under <strong>This profile</strong>.
-        </p>
         <div id="recentDeploysList" class="recent-deploys-list" aria-live="polite"></div>
       </div>
     </details>

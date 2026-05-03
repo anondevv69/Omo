@@ -142,8 +142,7 @@ function scheduleOmoDeployProfilePanel() {
 }
 
 /**
- * Floating panel on /profile/:handle — tokens this user deployed via Omo (relay Postgres index).
- * Solana (Pump) and Base (Clanker) both appear when the relay indexes `deploy_tokens` (same API).
+ * Floating panel on /profile/:handle — tokens this user deployed via Omo (relay index). Hidden if none.
  */
 async function renderOmoDeployProfilePanel() {
   const rootId = "omo-deployed-tokens-root";
@@ -215,19 +214,11 @@ async function renderOmoDeployProfilePanel() {
     );
     const j = await res.json().catch(() => ({}));
     const tokens = Array.isArray(j.tokens) ? j.tokens : [];
-    const indexed = j.indexed !== false;
 
     title.textContent = `Omo deploys · @${handle}`;
 
     if (!tokens.length) {
-      const msg = document.createElement("div");
-      msg.style.cssText = "opacity:0.8;line-height:1.4;";
-      msg.textContent = indexed
-        ? "No deploys indexed for this handle on this relay yet (Solana + Base both use the same index)."
-        : "Relay has no deploy database — set DATABASE_URL on the API (Railway → Postgres reference).";
-      root.replaceChildren(title, msg);
-      root.dataset.omoState = "ready";
-      root.dataset.omoFetchedAt = String(Date.now());
+      root.remove();
       return;
     }
 
@@ -258,12 +249,7 @@ async function renderOmoDeployProfilePanel() {
     root.dataset.omoFetchedAt = String(Date.now());
     root.dataset.omoHandle = handle;
   } catch {
-    const err = document.createElement("div");
-    err.style.opacity = "0.75";
-    err.textContent = "Could not load deploy list (offline or relay error).";
-    root.replaceChildren(title, err);
-    root.dataset.omoState = "ready";
-    root.dataset.omoFetchedAt = String(Date.now());
+    root.remove();
   }
 }
 

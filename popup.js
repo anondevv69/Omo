@@ -27,6 +27,7 @@ const appRootEl = document.getElementById("app-root");
 const headerStatusEl = document.getElementById("headerStatus");
 const imageFileEl = document.getElementById("imageFile");
 const recentDeploysListEl = document.getElementById("recentDeploysList");
+const recentDeploysFoldEl = document.getElementById("recentDeploysFold");
 
 /** When true, header shows Error until a successful Refresh clears it. */
 let headerError = false;
@@ -34,7 +35,7 @@ let headerError = false;
 const OMO_RECENT_DEPLOYS_KEY = "omoRecentDeploys";
 const RECENT_DEPLOYS_MAX = 30;
 
-/** Merge relay Postgres index with local chrome.storage entries (same token address wins newest `at`). */
+/** Merge relay deploy list with local chrome.storage (same token address wins newest `at`). */
 function mergeDeployLists(localList, remoteTokens) {
   const map = new Map();
   for (const row of localList) {
@@ -91,7 +92,7 @@ async function mergeRelayDeployHistoryForHandle(handle) {
     const merged = mergeDeployLists(local, remote);
     await chrome.storage.local.set({ [OMO_RECENT_DEPLOYS_KEY]: merged });
   } catch {
-    /* ignore — offline or relay has no DATABASE_URL */
+    /* ignore */
   }
 }
 
@@ -169,10 +170,7 @@ async function recordRecentDeploy({ name, symbol, data, isClanker, fomoLink }) {
   }
 }
 
-/**
- * When viewing someone else’s /profile/… tab — load Postgres-backed deploy index for **their** handle.
- * (Your own merged deploys still live under “Your recent deploys”.)
- */
+/** When viewing someone else’s /profile/… tab — list their relay-indexed deploys (hidden if none). */
 async function renderProfileRelayDeploys(profileSlugRaw) {
   if (!profileRelayDeploysWrapEl || !profileRelayDeploysListEl) return;
   const slug = decodeURIComponent(String(profileSlugRaw || "").trim())
@@ -183,12 +181,8 @@ async function renderProfileRelayDeploys(profileSlugRaw) {
     profileRelayDeploysListEl.replaceChildren();
     return;
   }
-  profileRelayDeploysWrapEl.hidden = false;
+  profileRelayDeploysWrapEl.hidden = true;
   profileRelayDeploysListEl.replaceChildren();
-  const loading = document.createElement("p");
-  loading.className = "hint";
-  loading.textContent = "Loading relay index…";
-  profileRelayDeploysListEl.appendChild(loading);
 
   const base = RELAY_ORIGIN.replace(/\/$/, "");
   try {
@@ -200,15 +194,10 @@ async function renderProfileRelayDeploys(profileSlugRaw) {
     profileRelayDeploysListEl.replaceChildren();
     const tokens = Array.isArray(j.tokens) ? j.tokens : [];
     if (!tokens.length) {
-      const p = document.createElement("p");
-      p.className = "hint";
-      p.textContent =
-        j.indexed === false
-          ? "Relay has no deploy database — operator sets DATABASE_URL."
-          : "No deploys indexed for this handle on this relay yet.";
-      profileRelayDeploysListEl.appendChild(p);
+      profileRelayDeploysWrapEl.hidden = true;
       return;
     }
+    profileRelayDeploysWrapEl.hidden = false;
     for (const row of tokens) {
       if (!row || typeof row !== "object") continue;
       const chain = row.chain === "base" ? "Base" : "Solana";
@@ -240,11 +229,8 @@ async function renderProfileRelayDeploys(profileSlugRaw) {
       profileRelayDeploysListEl.appendChild(el);
     }
   } catch {
+    profileRelayDeploysWrapEl.hidden = true;
     profileRelayDeploysListEl.replaceChildren();
-    const p = document.createElement("p");
-    p.className = "hint";
-    p.textContent = "Could not reach relay deploy list.";
-    profileRelayDeploysListEl.appendChild(p);
   }
 }
 
@@ -256,13 +242,10 @@ async function renderRecentDeploys() {
     : [];
   recentDeploysListEl.replaceChildren();
   if (!list.length) {
-    const p = document.createElement("p");
-    p.className = "hint";
-    p.textContent =
-      "No deploys listed yet — deploy from Omo or wait for the relay index if your relay uses Postgres.";
-    recentDeploysListEl.appendChild(p);
+    if (recentDeploysFoldEl) recentDeploysFoldEl.hidden = true;
     return;
   }
+  if (recentDeploysFoldEl) recentDeploysFoldEl.hidden = false;
   for (const row of list) {
     if (!row || typeof row !== "object") continue;
     const chain = row.chain === "base" ? "Base" : "Solana";
