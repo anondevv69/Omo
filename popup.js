@@ -120,6 +120,53 @@ function showStatus(text, err = false) {
   statusEl.style.borderColor = err ? "#f28b82" : "#2d3139";
 }
 
+/** @param {string} raw */
+function isSafeBasescanTxUrl(raw) {
+  const u = String(raw || "").trim();
+  try {
+    const url = new URL(u);
+    if (url.protocol !== "https:") return false;
+    if (url.hostname !== "basescan.org") return false;
+    return /^\/tx\/0x[a-fA-F0-9]{64}$/i.test(url.pathname);
+  } catch {
+    return false;
+  }
+}
+
+/** After successful Base fee claim — short message + clickable Basescan tx link. */
+function showClaimSuccessStatus(explorerUrl) {
+  statusEl.hidden = false;
+  statusEl.replaceChildren();
+  statusEl.style.borderColor = "#2d3139";
+  const intro = document.createElement("div");
+  intro.style.marginBottom = "10px";
+  intro.style.lineHeight = "1.45";
+  intro.textContent = "Claim submitted on Base.";
+  statusEl.appendChild(intro);
+  const href = String(explorerUrl || "").trim();
+  if (!href) {
+    const fb = document.createElement("div");
+    fb.textContent = "Transaction sent.";
+    statusEl.appendChild(fb);
+    return;
+  }
+  if (!isSafeBasescanTxUrl(href)) {
+    const fb = document.createElement("div");
+    fb.style.whiteSpace = "pre-wrap";
+    fb.style.wordBreak = "break-all";
+    fb.textContent = href;
+    statusEl.appendChild(fb);
+    return;
+  }
+  const a = document.createElement("a");
+  a.className = "deploy-result-link";
+  a.href = href;
+  a.target = "_blank";
+  a.rel = "noopener noreferrer";
+  a.textContent = "View claim on Basescan";
+  statusEl.appendChild(a);
+}
+
 /** Cooldown copy for duplicate-ticker responses (`retryAfterSec` from API). */
 function formatRetryHuman(seconds) {
   const s = Math.max(0, Math.floor(Number(seconds) || 0));
@@ -341,8 +388,14 @@ async function claimBaseFees(tokenAddress) {
       );
       return;
     }
-    const ex = typeof data.explorerUrl === "string" ? data.explorerUrl : "";
-    showStatus(ex ? `Claim submitted. ${ex}` : "Claim transaction sent.", false);
+    const ex =
+      typeof data.explorerUrl === "string"
+        ? data.explorerUrl.trim()
+        : typeof data.txHash === "string"
+          ? `https://basescan.org/tx/${data.txHash.trim()}`
+          : "";
+    if (ex) showClaimSuccessStatus(ex);
+    else showStatus("Claim transaction sent.", false);
   } catch (e) {
     showStatus(e instanceof Error ? e.message : String(e), true);
   }
