@@ -66,6 +66,61 @@ async function rehydrateLoggedInFomoHandleIfNeeded() {
   }
 }
 
+/** Last-known Sol/EVM per profile slug — survives FOMO 304/502/CORS gaps on UUID fetches. */
+const PROFILE_CANON_CACHE_KEY = "omoProfileCanonV1";
+
+function normalizeProfileSlugForCache(slug) {
+  return String(slug || "").trim().replace(/^@+/, "").toLowerCase();
+}
+
+async function hydrateProfileCanonFromStorage(slugNorm) {
+  if (!slugNorm) return;
+  try {
+    const r = await chrome.storage.local.get([PROFILE_CANON_CACHE_KEY]);
+    const map =
+      r[PROFILE_CANON_CACHE_KEY] && typeof r[PROFILE_CANON_CACHE_KEY] === "object"
+        ? r[PROFILE_CANON_CACHE_KEY]
+        : {};
+    const row = map[slugNorm];
+    if (!row || typeof row !== "object") return;
+    const sol = typeof row.sol === "string" ? row.sol.trim() : "";
+    const evm = typeof row.evm === "string" ? row.evm.trim() : "";
+    if (sol && /^[1-9A-HJ-NP-Za-km-z]{43,44}$/.test(sol) && !profileCanonSeenSol.has(sol)) {
+      profileCanonSeenSol.add(sol);
+      profileCanonListSol.push(sol);
+    }
+    if (evm && /^0x[a-fA-F0-9]{40}$/i.test(evm) && !profileCanonSeenEvm.has(evm)) {
+      profileCanonSeenEvm.add(evm);
+      profileCanonListEvm.push(evm);
+    }
+  } catch {
+    /* ignore */
+  }
+}
+
+function persistProfileCanonCache(slugNorm, solAddr, evmAddr) {
+  if (!slugNorm) return;
+  const sol = typeof solAddr === "string" ? solAddr.trim() : "";
+  const evm = typeof evmAddr === "string" ? evmAddr.trim() : "";
+  if (!sol && !evm) return;
+  void chrome.storage.local
+    .get([PROFILE_CANON_CACHE_KEY])
+    .then((r) => {
+      const map =
+        r[PROFILE_CANON_CACHE_KEY] && typeof r[PROFILE_CANON_CACHE_KEY] === "object"
+          ? { ...r[PROFILE_CANON_CACHE_KEY] }
+          : {};
+      const prev = map[slugNorm] && typeof map[slugNorm] === "object" ? map[slugNorm] : {};
+      map[slugNorm] = {
+        sol: sol || prev.sol || "",
+        evm: evm || prev.evm || "",
+        at: Date.now(),
+      };
+      return chrome.storage.local.set({ [PROFILE_CANON_CACHE_KEY]: map });
+    })
+    .catch(() => {});
+}
+
 function normalizeHandleForDeployMetrics(h) {
   return String(h || "")
     .trim()
@@ -457,17 +512,21 @@ function applyUserDetailToBuckets(ud) {
       String(ph).toLowerCase() === String(slug).toLowerCase()
     ) {
       /**
-       * Only clear canon lists when we have valid replacement data.
-       * Prevents "—" EVM when 304 Not Modified returns body-less cached response
-       * or when API omits evmAddress temporarily.
+       * Clear Sol / EVM buckets independently when that field is present in the response.
+       * If FOMO returns Sol only (EVM slow/null), do not wipe EVM — avoids "—" while UUID fetch races / 502.
        */
       const hasValidSol = typeof ud.address === "string" && ud.address.length >= 32;
-      const hasValidEvm = typeof ud.evmAddress === "string" && ud.evmAddress.startsWith("0x") && ud.evmAddress.length === 42;
+      const hasValidEvm =
+        typeof ud.evmAddress === "string" &&
+        ud.evmAddress.startsWith("0x") &&
+        ud.evmAddress.length === 42;
 
-      if (hasValidSol || hasValidEvm) {
+      if (hasValidSol) {
         profileCanonSeenSol.clear();
-        profileCanonSeenEvm.clear();
         profileCanonListSol.length = 0;
+      }
+      if (hasValidEvm) {
+        profileCanonSeenEvm.clear();
         profileCanonListEvm.length = 0;
       }
       /** `userHandle/{slug}` row — trust Sol + EVM from this response (FOMO may still set `activated: false` for other reasons). */
@@ -478,6 +537,11 @@ function applyUserDetailToBuckets(ud) {
         profileCanonSeenEvm,
         ud.address,
         ud.evmAddress
+      );
+      persistProfileCanonCache(
+        normalizeProfileSlugForCache(String(slug)),
+        profileCanonListSol[0],
+        profileCanonListEvm[0]
       );
       if (
         typeof ph === "string" &&
@@ -499,6 +563,20 @@ function applyUserDetailToBuckets(ud) {
        * bar as `…/userHandle/{slug}` (Sol + EVM from one trusted row).
        */
       if (profileHandleMatchesUrlSlug(slug, ud.profileHandle)) {
+        const hs =
+          typeof ud.address === "string" && ud.address.length >= 32;
+        const he =
+          typeof ud.evmAddress === "string" &&
+          ud.evmAddress.startsWith("0x") &&
+          ud.evmAddress.length === 42;
+        if (hs) {
+          profileCanonSeenSol.clear();
+          profileCanonListSol.length = 0;
+        }
+        if (he) {
+          profileCanonSeenEvm.clear();
+          profileCanonListEvm.length = 0;
+        }
         addCanon(
           profileCanonListSol,
           profileCanonListEvm,
@@ -506,6 +584,11 @@ function applyUserDetailToBuckets(ud) {
           profileCanonSeenEvm,
           ud.address,
           ud.evmAddress
+        );
+        persistProfileCanonCache(
+          normalizeProfileSlugForCache(String(slug)),
+          profileCanonListSol[0],
+          profileCanonListEvm[0]
         );
       }
       pendingUserDetail = null;
@@ -881,6 +964,11 @@ async function publish() {
     profileBuddyId = null;
     pendingUserDetail = null;
     lastProfileSlugPublished = slug;
+  }
+
+  /** Stale-while-revalidate: show last-known wallets immediately; live API may lag (304/502/CORS on UUID). */
+  if (slug) {
+    await hydrateProfileCanonFromStorage(normalizeProfileSlugForCache(slug));
   }
 
   const dom = extractAddresses();
